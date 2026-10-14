@@ -6,6 +6,7 @@ Event shapes (normalised by the channel adapter):
 """
 import json
 import re
+from datetime import datetime, timezone
 from urllib.parse import parse_qs
 
 from . import messages as M
@@ -90,7 +91,8 @@ class Bot:
                 return [M.stale()] + self._prompt(user_id, state, data)
             return handler(user, data, p.get("v"))
         if etype == "text" and state in TEXT_STATES:
-            return getattr(self, f"_text_{state}")(user, data, (event.get("text") or "").strip())
+            typed = (event.get("text") or "").replace("\x00", "").strip()  # NUL bytes break Postgres text
+            return getattr(self, f"_text_{state}")(user, data, typed)
         if state == "idle":
             return [M.unknown_idle()]
         return [M.unknown()] + self._prompt(user_id, state, data)
@@ -163,6 +165,7 @@ class Bot:
     def _on_consent(self, user, data, val):
         uid = user["user_id"]
         if val == "yes":
+            self.db.update_user(uid, consented_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
             self.db.set_state(uid, "nickname")
             return [M.ask_nickname()]
         if val == "no":
@@ -288,8 +291,7 @@ class Bot:
         if open_:
             h = open_[0]
             if detail:
-                merged = f"{h['detail']} | {detail}" if h["detail"] else detail
-                self.db.update_help(h["id"], detail=merged[:2000])
+                self.db.add_help_note(h["id"], detail)
             return M.help_appended(h["id"], h["status"])
         return M.help_created(self.db.create_help(uid, category, detail))
 

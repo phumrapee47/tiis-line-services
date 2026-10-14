@@ -112,7 +112,7 @@ def test_second_checkin_same_week_updates_instead_of_duplicating(bot, db):
     c.tap("แก้ไข")
     c.tap("เสร็จแล้ว")
     c.tap("5")
-    rows = db._q("SELECT * FROM checkins WHERE user_id='U1'")
+    rows = db.all_checkins()
     assert len(rows) == 1 and rows[0]["progress"] == "done" and "อัปเดต" in c.text
 
 

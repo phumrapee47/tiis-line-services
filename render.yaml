@@ -17,8 +17,11 @@ services:
         sync: false
       - key: TEAM_TOKEN
         generateValue: true
+      - key: DATABASE_URL          # Supabase Session pooler URI (contains the DB password): set in the dashboard
+        sync: false
       - key: PROJECT_START
         value: "2026-10-19"
-      # Free plan has no persistent disk: this file is wiped on restart/redeploy/spin-down.
+      # Used only when DATABASE_URL is empty. The free plan has no persistent disk, so this file is
+      # wiped on restart: set DATABASE_URL to keep data.
       - key: DB_PATH
         value: /tmp/data.db

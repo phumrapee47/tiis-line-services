@@ -8,7 +8,7 @@ from .tasks import DEFAULT_TASKS
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
-    user_id TEXT PRIMARY KEY, nickname TEXT, goal TEXT, display_name TEXT,
+    user_id TEXT PRIMARY KEY, nickname TEXT, goal TEXT, display_name TEXT, consented_at TEXT,
     state TEXT NOT NULL, state_data TEXT NOT NULL DEFAULT '{}',
     joined_on TEXT NOT NULL
 );
@@ -32,7 +32,8 @@ CREATE TABLE IF NOT EXISTS weekly_tasks (
 CREATE TABLE IF NOT EXISTS events (event_id TEXT PRIMARY KEY, received_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS outbox (
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL,
-    messages TEXT NOT NULL, created_at TEXT NOT NULL, delivered INTEGER NOT NULL DEFAULT 0
+    messages TEXT NOT NULL, created_at TEXT NOT NULL, delivered INTEGER NOT NULL DEFAULT 0,
+    attempts INTEGER NOT NULL DEFAULT 0, last_error TEXT
 );
 CREATE TABLE IF NOT EXISTS pushes_sent (
     user_id TEXT NOT NULL, kind TEXT NOT NULL, key TEXT NOT NULL,
@@ -60,10 +61,13 @@ class Database:
 
     def _migrate(self):
         # databases created before weekly tasks existed lack the snapshot column
-        for table, column in (("checkins", "task_title"), ("users", "display_name")):
+        added = (("checkins", "task_title", "TEXT"), ("users", "display_name", "TEXT"),
+                 ("users", "consented_at", "TEXT"), ("outbox", "attempts", "INTEGER NOT NULL DEFAULT 0"),
+                 ("outbox", "last_error", "TEXT"))
+        for table, column, ddl in added:
             cols = {r["name"] for r in self.conn.execute(f"PRAGMA table_info({table})")}
             if column not in cols:
-                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
         self.conn.commit()
 
     def _seed_tasks(self):
@@ -197,9 +201,15 @@ class Database:
         return [dict(r) for r in rows]
 
     def update_help(self, help_id, **fields):
+        fields.pop("changed_by", None)  # only the Postgres backend keeps a status log
         fields["updated_at"] = _now()
         cols = ", ".join(f"{k}=?" for k in fields)
         self._x(f"UPDATE help_requests SET {cols} WHERE id=?", (*fields.values(), help_id))
+
+    def add_help_note(self, help_id, body, author="learner"):
+        h = self.get_help(help_id)
+        merged = f"{h['detail']} | {body}" if h and h["detail"] else body
+        self.update_help(help_id, detail=merged[:2000])
 
     # outbox (messages the system sends on its own: status updates, reminders)
     def add_outbox(self, user_id, messages):
@@ -211,6 +221,9 @@ class Database:
         if user_id:
             sql, args = sql + " AND user_id=?", (user_id,)
         return [{**dict(r), "messages": json.loads(r["messages"])} for r in self._q(sql + " ORDER BY id", args)]
+
+    def record_outbox_failure(self, outbox_id, error):
+        self._x("UPDATE outbox SET attempts = attempts + 1, last_error = ? WHERE id=?", (str(error)[:500], outbox_id))
 
     def mark_delivered(self, outbox_id):
         self._x("UPDATE outbox SET delivered=1 WHERE id=?", (outbox_id,))

@@ -21,6 +21,6 @@ def set_help_status(db, help_id, new_status):
             return True, "unchanged"
         if new_status not in TRANSITIONS[h["status"]]:
             return False, f"cannot_go_from_{h['status']}_to_{new_status}"
-        db.update_help(help_id, status=new_status)
+        db.update_help(help_id, status=new_status, changed_by="team")
         db.add_outbox(h["user_id"], [M.help_status_changed(help_id, new_status)])
         return True, "changed"

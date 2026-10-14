@@ -23,13 +23,16 @@ from flask import Flask, Response, jsonify, request, send_from_directory
 
 from . import config, line_adapter, reports, scheduler, tasks, team, triage
 from .bot import Bot
-from .db import Database
+from .store import open_database
+
+
+MAX_PUSH_ATTEMPTS = 5
 
 
 def create_app(db=None, bot=None):
     app = Flask(__name__)
     app.json.ensure_ascii = False
-    db = db or Database(config.DB_PATH)
+    db = db or open_database()
     bot = bot or Bot(db)
 
     def flush_outbox():
@@ -37,10 +40,12 @@ def create_app(db=None, bot=None):
         if not config.LINE_CHANNEL_TOKEN:
             return
         for row in db.pending_outbox():
-            if row["user_id"].startswith("sim-"):
-                continue
+            if row["user_id"].startswith("sim-") or row.get("attempts", 0) >= MAX_PUSH_ATTEMPTS:
+                continue  # simulated users poll instead; a message that keeps failing stops being retried
             if line_adapter.push(row["user_id"], row["messages"], config.LINE_CHANNEL_TOKEN):
                 db.mark_delivered(row["id"])
+            else:
+                db.record_outbox_failure(row["id"], "LINE push failed")
 
     @app.before_request
     def require_team_token():
