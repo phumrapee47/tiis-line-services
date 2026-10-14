@@ -266,7 +266,7 @@ def test_board_page_is_served_without_token_and_contains_no_data(db, bot, monkey
     r = create_app(db, bot).test_client().get("/board")  # no token header
     assert r.status_code == 200 and "text/html" in r.content_type
     page = r.get_data(as_text=True)
-    assert "Triage Board" in page and "ลับมาก" not in page
+    assert "ติดตามผู้เรียน TIIS" in page and "Triage Board" not in page and "ลับมาก" not in page
     assert r.headers["Cache-Control"] == "no-store"
 
 
@@ -717,4 +717,4 @@ def test_csv_export_rejects_unknown_kind(client):
 
 def test_board_page_has_report_and_export_controls(db, bot):
     page = create_app(db, bot).test_client().get("/board").get_data(as_text=True)
-    assert "/api/report" in page and "/api/export.csv" in page and "รายงานสัปดาห์" in page
+    assert "/api/report" in page and "/api/export.csv" in page and "ภาพรวมรายสัปดาห์" in page
