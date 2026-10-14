@@ -258,3 +258,32 @@ def test_webhook_requires_config_and_valid_signature(client, monkeypatch):
     assert sent and sent[0][0] == "rt" and "ยินยอม" in sent[0][1][0]["quick_replies"][0]["label"]
     client.post("/webhook", data=body, headers={"X-Line-Signature": sig})  # LINE retry
     assert len(sent) == 1
+
+
+def test_board_page_is_served_without_token_and_contains_no_data(db, bot, monkeypatch):
+    monkeypatch.setattr(config, "TEAM_TOKEN", "team-test-token")
+    register(bot, "U1", "ลับมาก")
+    r = create_app(db, bot).test_client().get("/board")  # no token header
+    assert r.status_code == 200 and "text/html" in r.content_type
+    page = r.get_data(as_text=True)
+    assert "Triage Board" in page and "ลับมาก" not in page
+    assert r.headers["Cache-Control"] == "no-store"
+
+
+def test_team_api_shows_nicknames_but_not_line_user_ids(client, bot):
+    c = register(bot, "Uabc123secret", "เอ")
+    c.say("ขอความช่วยเหลือ")
+    c.tap("เนื้อหา")
+    c.tap("ข้าม")
+    helps = client.get("/api/help").get_json()["requests"]
+    learners = client.get("/api/triage").get_json()["learners"]
+    assert helps[0]["nickname"] == "เอ" and learners[0]["nickname"] == "เอ"
+    assert "Uabc123secret" not in json.dumps([helps, learners])
+
+
+def test_timestamps_are_utc_with_offset_so_browsers_show_local_time(bot, db):
+    c = register(bot)
+    c.say("ขอความช่วยเหลือ")
+    c.tap("เนื้อหา")
+    c.tap("ข้าม")
+    assert db.list_help()[0]["created_at"].endswith("+00:00")

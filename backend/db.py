@@ -2,7 +2,7 @@
 import json
 import sqlite3
 import threading
-from datetime import datetime
+from datetime import datetime, timezone
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
@@ -40,7 +40,7 @@ CREATE TABLE IF NOT EXISTS followups (
 
 
 def _now() -> str:
-    return datetime.now().isoformat(timespec="seconds")
+    return datetime.now(timezone.utc).isoformat(timespec="seconds")
 
 
 class Database:

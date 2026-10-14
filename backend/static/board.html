@@ -1,0 +1,255 @@
+<!doctype html>
+<html lang="th">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex">
+<title>Triage Board</title>
+<style>
+  :root {
+    --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #5d6677; --line: #dfe3ea;
+    --high: #c0362c; --high-bg: #fdecea; --med: #9a6200; --med-bg: #fff4dc;
+    --ok: #2c7a4b; --ok-bg: #e6f4ec; --accent: #2457d6; --accent-bg: #e8eefc;
+  }
+  @media (prefers-color-scheme: dark) {
+    :root {
+      --bg: #12151b; --card: #1b2029; --text: #e8ebf1; --muted: #9aa4b5; --line: #2d3442;
+      --high: #ff8a80; --high-bg: #3a1f1d; --med: #f2b84b; --med-bg: #3a2e14;
+      --ok: #6fcf97; --ok-bg: #173324; --accent: #8fb0ff; --accent-bg: #1c2a4d;
+    }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; background: var(--bg); color: var(--text);
+         font: 16px/1.5 system-ui, "Noto Sans Thai", "Segoe UI", sans-serif; }
+  .wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
+  header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
+  h1 { font-size: 1.4rem; margin: 0; }
+  h2 { font-size: 1.1rem; margin: 28px 0 10px; }
+  .muted { color: var(--muted); font-size: .9rem; }
+  button, select { font: inherit; color: inherit; }
+  button { cursor: pointer; border: 1px solid var(--line); background: var(--card);
+           border-radius: 8px; padding: 6px 12px; min-height: 36px; }
+  button:hover { border-color: var(--accent); }
+  button:disabled { opacity: .5; cursor: default; }
+  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+  select, input[type=password] { border: 1px solid var(--line); background: var(--card);
+           border-radius: 8px; padding: 6px 10px; min-height: 36px; }
+  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 14px; }
+  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
+  .stat b { display: block; font-size: 1.6rem; line-height: 1.2; }
+  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
+          padding: 12px 14px; margin-bottom: 10px; border-left-width: 5px; }
+  .card.high { border-left-color: var(--high); } .card.medium { border-left-color: var(--med); }
+  .card.normal { border-left-color: var(--ok); }
+  .top { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
+  .name { font-weight: 600; font-size: 1.05rem; }
+  .badge { border-radius: 999px; padding: 1px 10px; font-size: .8rem; font-weight: 600; }
+  .badge.high { background: var(--high-bg); color: var(--high); }
+  .badge.medium { background: var(--med-bg); color: var(--med); }
+  .badge.normal { background: var(--ok-bg); color: var(--ok); }
+  .badge.info { background: var(--accent-bg); color: var(--accent); }
+  ul { margin: 6px 0 0; padding-left: 20px; }
+  .detail { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .empty { background: var(--card); border: 1px dashed var(--line); border-radius: 10px;
+           padding: 18px; text-align: center; color: var(--muted); }
+  .banner { margin-top: 12px; padding: 10px 14px; border-radius: 10px; background: var(--high-bg); color: var(--high); }
+  #login { max-width: 420px; margin: 12vh auto; background: var(--card); border: 1px solid var(--line);
+           border-radius: 12px; padding: 20px; }
+  #login input { width: 100%; margin: 10px 0; }
+  [hidden] { display: none !important; }
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <section id="login" hidden>
+    <h1>Triage Board</h1>
+    <p class="muted">สำหรับทีมงานเท่านั้น กรอกรหัสทีม (TEAM_TOKEN) เพื่อดูข้อมูลผู้เรียน</p>
+    <form id="loginForm">
+      <label for="token" class="muted">รหัสทีม</label>
+      <input id="token" type="password" autocomplete="off" required>
+      <div id="loginError" class="banner" hidden></div>
+      <button class="primary" type="submit">เข้าสู่ระบบ</button>
+    </form>
+  </section>
+
+  <main id="app" hidden>
+    <header>
+      <div>
+        <h1>Triage Board</h1>
+        <div class="muted" id="updated">กำลังโหลด...</div>
+      </div>
+      <div class="row">
+        <button id="refresh" type="button">รีเฟรช</button>
+        <button id="logout" type="button">ออกจากระบบ</button>
+      </div>
+    </header>
+    <div id="error" class="banner" hidden></div>
+    <div class="stats" id="stats"></div>
+
+    <h2>ผู้เรียนที่ควรตามก่อน</h2>
+    <div class="row" style="margin-bottom:10px">
+      <label class="row muted"><input type="checkbox" id="hideNormal" checked> ซ่อนผู้ที่ปกติ</label>
+    </div>
+    <div id="learners"></div>
+
+    <h2>เรื่องขอความช่วยเหลือ</h2>
+    <div class="row" style="margin-bottom:10px">
+      <label class="muted" for="helpFilter">แสดง</label>
+      <select id="helpFilter">
+        <option value="open">ที่ยังไม่ปิด</option>
+        <option value="waiting">รอทีมรับเรื่อง</option>
+        <option value="accepted">ทีมรับเรื่องแล้ว</option>
+        <option value="replied">ทีมตอบแล้ว</option>
+        <option value="closed">ปิดเรื่อง</option>
+        <option value="all">ทั้งหมด</option>
+      </select>
+      <span class="muted">เมื่อเปลี่ยนสถานะ ผู้เรียนจะได้รับแจ้งทาง LINE</span>
+    </div>
+    <div id="helps"></div>
+    <p class="muted">คะแนนความเสี่ยงมาจากกฎที่ตั้งไว้เป็นค่าเริ่มต้น ยังไม่ได้ทดสอบกับผู้เรียนจริง ใช้ประกอบดุลยพินิจของทีมเท่านั้น</p>
+  </main>
+</div>
+
+<script>
+const LABEL = {
+  progress: { done: "ทำเสร็จแล้ว", doing: "กำลังทำ", not_started: "ยังไม่ได้เริ่ม", stuck: "ติดอยู่" },
+  cat: { content: "เนื้อหา/ชิ้นงาน", tool: "เครื่องมือ/เทคนิค", confidence: "ไม่มั่นใจ/กำลังใจ", other: "เรื่องอื่นๆ" },
+  status: { waiting: "รอทีมรับเรื่อง", accepted: "ทีมรับเรื่องแล้ว", replied: "ทีมตอบแล้ว", closed: "ปิดเรื่อง" },
+  level: { high: "สูง", medium: "กลาง", normal: "ปกติ" },
+};
+const NEXT = {
+  waiting: [["accepted", "รับเรื่อง"], ["closed", "ปิดเรื่อง"]],
+  accepted: [["replied", "ตอบแล้ว"], ["closed", "ปิดเรื่อง"]],
+  replied: [["accepted", "เปิดใหม่"], ["closed", "ปิดเรื่อง"]],
+  closed: [],
+};
+const STATUS_ORDER = { waiting: 0, accepted: 1, replied: 2, closed: 3 };
+const $ = (id) => document.getElementById(id);
+let learners = [], helps = [], timer = null;
+
+// Build DOM with textContent only: nicknames and help details are user-typed (no innerHTML).
+function el(tag, props = {}, ...kids) {
+  const n = document.createElement(tag);
+  for (const [k, v] of Object.entries(props)) {
+    if (k === "class") n.className = v; else if (k === "text") n.textContent = v; else n[k] = v;
+  }
+  kids.flat().forEach((c) => c != null && n.append(c));
+  return n;
+}
+const getToken = () => { try { return sessionStorage.getItem("teamToken") || ""; } catch { return ""; } };
+const setToken = (t) => { try { t ? sessionStorage.setItem("teamToken", t) : sessionStorage.removeItem("teamToken"); } catch {} };
+
+class AuthError extends Error {}
+async function api(path, opts = {}) {
+  let res;
+  try {
+    res = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", "X-Team-Token": getToken() } });
+  } catch { throw new Error("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ (ถ้าเซิร์ฟเวอร์เพิ่งตื่น ลองรอสักครู่แล้วรีเฟรช)"); }
+  if (res.status === 401) throw new AuthError("รหัสทีมไม่ถูกต้อง");
+  if (res.status === 503) throw new Error("เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า TEAM_TOKEN");
+  const body = await res.json().catch(() => ({}));
+  if (!res.ok) throw new Error(body.error || `เกิดข้อผิดพลาด (${res.status})`);
+  return body;
+}
+
+function showLogin(msg) {
+  $("app").hidden = true; $("login").hidden = false;
+  $("loginError").hidden = !msg; $("loginError").textContent = msg || "";
+  clearInterval(timer);
+}
+function showError(msg) { $("error").hidden = !msg; $("error").textContent = msg || ""; }
+
+async function load() {
+  try {
+    const [t, h] = await Promise.all([api("/api/triage"), api("/api/help")]);
+    learners = t.learners; helps = h.requests;
+    $("login").hidden = true; $("app").hidden = false;
+    showError("");
+    $("updated").textContent = "อัปเดตล่าสุด " + new Date().toLocaleTimeString("th-TH");
+    render();
+  } catch (e) {
+    if (e instanceof AuthError) { setToken(""); showLogin(e.message); }
+    else if ($("app").hidden) showLogin(e.message);
+    else showError(e.message);
+  }
+}
+
+function render() {
+  const count = (lv) => learners.filter((l) => l.level === lv).length;
+  const open = helps.filter((r) => r.status !== "closed").length;
+  $("stats").replaceChildren(
+    ...[["ต้องตามด่วน", count("high")], ["ควรติดตาม", count("medium")], ["ปกติ", count("normal")], ["เรื่องที่ยังไม่ปิด", open]]
+      .map(([k, v]) => el("div", { class: "stat" }, el("b", { text: String(v) }), el("span", { class: "muted", text: k })))
+  );
+
+  const shown = learners.filter((l) => !($("hideNormal").checked && l.level === "normal"));
+  $("learners").replaceChildren(...(shown.length ? shown.map(learnerCard)
+    : [el("div", { class: "empty", text: learners.length ? "ไม่มีผู้เรียนที่ต้องติดตามตอนนี้ 🎉" : "ยังไม่มีผู้เรียนลงทะเบียน" })]));
+
+  const f = $("helpFilter").value;
+  const rows = helps.filter((r) => f === "all" ? true : f === "open" ? r.status !== "closed" : r.status === f)
+    .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.id - b.id);
+  $("helps").replaceChildren(...(rows.length ? rows.map(helpCard)
+    : [el("div", { class: "empty", text: "ไม่มีเรื่องในหมวดนี้" })]));
+}
+
+function learnerCard(l) {
+  return el("div", { class: "card " + l.level },
+    el("div", { class: "top" },
+      el("span", { class: "name", text: l.nickname || "(ไม่ระบุชื่อ)" }),
+      el("span", { class: "badge " + l.level, text: "ความเสี่ยง" + LABEL.level[l.level] }),
+      el("span", { class: "muted", text: "คะแนน " + l.score }),
+      l.last_progress ? el("span", { class: "muted", text: "ล่าสุด: " + LABEL.progress[l.last_progress] }) : null),
+    el("ul", {}, l.reasons.map((r) => el("li", { text: r }))));
+}
+
+function helpCard(r) {
+  const created = new Date(r.created_at);
+  const acts = NEXT[r.status].map(([to, label]) => {
+    const b = el("button", { type: "button", text: label, className: to === "accepted" && r.status === "waiting" ? "primary" : "" });
+    b.addEventListener("click", () => changeStatus(r.id, to, b));
+    return b;
+  });
+  return el("div", { class: "card " + (r.status === "waiting" ? "high" : r.status === "closed" ? "normal" : "medium") },
+    el("div", { class: "top" },
+      el("span", { class: "name", text: "#" + r.id + " " + (r.nickname || "(ไม่ระบุชื่อ)") }),
+      el("span", { class: "badge info", text: LABEL.cat[r.category] || r.category }),
+      el("span", { class: "badge " + (r.status === "waiting" ? "high" : r.status === "closed" ? "normal" : "medium"), text: LABEL.status[r.status] }),
+      el("span", { class: "muted", text: isNaN(created) ? "" : created.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" }) })),
+    r.detail ? el("div", { class: "detail", text: r.detail }) : el("div", { class: "muted", text: "(ไม่ได้ระบุรายละเอียด)" }),
+    acts.length ? el("div", { class: "actions" }, acts) : null);
+}
+
+async function changeStatus(id, status, btn) {
+  document.querySelectorAll(".actions button").forEach((b) => (b.disabled = true)); // one click, one request
+  try {
+    await api(`/api/help/${id}/status`, { method: "POST", body: JSON.stringify({ status }) });
+    showError("");
+  } catch (e) {
+    if (e instanceof AuthError) { setToken(""); return showLogin(e.message); }
+    showError(e.message);
+  }
+  await load();
+}
+
+$("loginForm").addEventListener("submit", (e) => {
+  e.preventDefault();
+  setToken($("token").value.trim()); $("token").value = "";
+  load().then(() => { if (!$("app").hidden) startTimer(); });
+});
+$("logout").addEventListener("click", () => { setToken(""); showLogin(""); });
+$("refresh").addEventListener("click", load);
+$("hideNormal").addEventListener("change", render);
+$("helpFilter").addEventListener("change", render);
+
+function startTimer() {
+  clearInterval(timer);
+  timer = setInterval(() => { if (!document.hidden) load(); }, 30000);
+}
+if (getToken()) { load().then(() => { if (!$("app").hidden) startTimer(); }); } else showLogin("");
+</script>
+</body>
+</html>
