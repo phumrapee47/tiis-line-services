@@ -90,7 +90,9 @@ def create_app(db=None, bot=None):
         for user_id, reply_token, event in line_adapter.parse_events(payload):
             msgs = bot.handle(user_id, event)
             if msgs and reply_token:
-                line_adapter.reply(reply_token, msgs, config.LINE_CHANNEL_TOKEN)
+                if not line_adapter.reply(reply_token, msgs, config.LINE_CHANNEL_TOKEN):
+                    # the bot has already moved on, so deliver the same messages by push instead
+                    line_adapter.push(user_id, msgs, config.LINE_CHANNEL_TOKEN)
             remember_profile(user_id)  # after replying, so it never delays the answer
         return jsonify(ok=True)  # always 200 once verified, so LINE does not retry endlessly
 
