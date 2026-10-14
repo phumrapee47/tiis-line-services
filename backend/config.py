@@ -29,7 +29,6 @@ PROJECT_DAYS = 42            # 6 weeks
 MAIN_ACTIVITY_DAYS = 28      # weeks 1-4: main learning activity
 FOLLOWUP_MIN_DAYS = 14       # brief: follow up >= 14 days after the main activity
 assert MAIN_ACTIVITY_DAYS + FOLLOWUP_MIN_DAYS <= PROJECT_DAYS, "follow-up window must fit inside the project"
-START_SETTING = "project_start"            # key in the settings table
 MIN_START, MAX_START = date(2020, 1, 1), date(2100, 12, 31)
 
 # Promised reply time shown to learners (assumption, not a measured SLA).

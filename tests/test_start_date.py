@@ -91,7 +91,7 @@ def test_settings_report_where_the_project_is_today(client, monkeypatch, today_o
 def test_saving_a_start_date_stores_it_applies_it_and_marks_it_as_set(client, db):
     r = client.put("/api/settings", json={"project_start": "2026-11-09"})
     assert r.status_code == 200 and r.get_json()["project_start"] == "2026-11-09" and r.get_json()["start_is_set"] is True
-    assert db.get_setting("project_start") == "2026-11-09" and config.PROJECT_START == date(2026, 11, 9)
+    assert db.get_project_start() == "2026-11-09" and config.PROJECT_START == date(2026, 11, 9)
     assert client.get("/api/settings").get_json()["start_is_set"] is True
 
 
@@ -103,7 +103,7 @@ def test_saving_a_start_date_stores_it_applies_it_and_marks_it_as_set(client, db
 def test_bad_start_dates_are_refused_and_change_nothing(client, db, body):
     before = config.PROJECT_START
     assert client.put("/api/settings", json=body).status_code == 400
-    assert config.PROJECT_START == before and db.get_setting("project_start") is None
+    assert config.PROJECT_START == before and db.get_project_start() is None
 
 
 def test_the_first_and_last_allowed_dates_work(client):
@@ -120,11 +120,11 @@ def test_moving_the_start_after_reports_exist_needs_an_explicit_confirmation(cli
     moved = "2026-12-01"
     r = client.put("/api/settings", json={"project_start": moved})
     assert r.status_code == 409 and r.get_json() == {"error": "reports_exist"}
-    assert db.get_setting("project_start") is None                                 # nothing changed
+    assert db.get_project_start() is None                                 # nothing changed
     for not_a_yes in ("true", 1, "yes", None, False):
         assert client.put("/api/settings", json={"project_start": moved, "confirm_shift": not_a_yes}).status_code == 409
     assert client.put("/api/settings", json={"project_start": moved, "confirm_shift": True}).status_code == 200
-    assert db.get_setting("project_start") == moved and config.PROJECT_START == date(2026, 12, 1)
+    assert db.get_project_start() == moved and config.PROJECT_START == date(2026, 12, 1)
 
 
 def test_saving_the_same_date_again_never_needs_confirmation(client, bot):
@@ -140,14 +140,14 @@ def test_settings_know_whether_reports_exist(client, bot):
 
 # ---- start-up and effects on other endpoints ----------------------------------------------------------
 def test_a_saved_start_date_is_loaded_when_the_app_starts(db, bot):
-    db.set_setting("project_start", "2027-01-11")
+    db.save_project_start("2027-01-11")
     create_app(db, bot)
     assert config.PROJECT_START == date(2027, 1, 11)
 
 
 def test_a_corrupt_stored_value_is_ignored_with_a_warning(db, bot, caplog):
     before = config.PROJECT_START
-    db.set_setting("project_start", "not-a-date")
+    db._x("INSERT INTO project_config (id, start_date, updated_at) VALUES (1, '2026-02-30', 'x')")   # fits the pattern, is no date
     with caplog.at_level("WARNING"):
         create_app(db, bot)
     assert config.PROJECT_START == before and any("not a date" in r.message for r in caplog.records)
@@ -186,7 +186,7 @@ def test_the_demo_seed_script_builds_a_consistent_demo_and_refuses_to_overwrite(
     assert ok.returncode == 0, ok.stderr
     from backend.db import Database
     demo = Database(str(target))
-    start = date.fromisoformat(demo.get_setting("project_start"))
+    start = date.fromisoformat(demo.get_project_start())
     assert (date.today() - start).days in (14, 15, 16)                     # today is week 3, never a future week
     weeks = {c["week"] for c in demo.all_checkins()}
     assert weeks == {1, 2, 3}

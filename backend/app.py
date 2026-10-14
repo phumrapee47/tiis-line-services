@@ -39,7 +39,7 @@ def create_app(db=None, bot=None):
     db = db or open_database()
     bot = bot or Bot(db)
 
-    saved = db.get_setting(config.START_SETTING)
+    saved = db.get_project_start()
     if saved:
         try:
             config.set_project_start(date.fromisoformat(saved))
@@ -52,7 +52,7 @@ def create_app(db=None, bot=None):
         state = config.project_state(today)
         iso = lambda d: d.isoformat()
         return {
-            "project_start": iso(start), "start_is_set": db.get_setting(config.START_SETTING) is not None,
+            "project_start": iso(start), "start_is_set": db.get_project_start() is not None,
             "today": iso(today), "state": state,
             "days_until_start": max((start - today).days, 0),
             "day_no": (today - start).days + 1 if today >= start else 0,
@@ -230,7 +230,7 @@ def create_app(db=None, bot=None):
         # moving the start changes which week every existing report belongs to: make the caller say so
         if new != config.PROJECT_START and db.has_checkins() and body.get("confirm_shift") is not True:
             return jsonify(error="reports_exist"), 409
-        db.set_setting(config.START_SETTING, new.isoformat())
+        db.save_project_start(new.isoformat())
         config.set_project_start(new)
         return jsonify(ok=True, **settings_view())
 

@@ -40,7 +40,7 @@ def main():
     db = Database(path)
     today = datetime.now(config.THAI_TZ).date()
     start = today - timedelta(days=15)
-    db.set_setting(config.START_SETTING, start.isoformat())
+    db.save_project_start(start.isoformat())
     config.set_project_start(start)
     clock = {"d": start}
     bot = Bot(db, today=lambda: clock["d"])
