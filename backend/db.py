@@ -8,7 +8,7 @@ from .tasks import DEFAULT_TASKS
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
-    user_id TEXT PRIMARY KEY, nickname TEXT, goal TEXT,
+    user_id TEXT PRIMARY KEY, nickname TEXT, goal TEXT, display_name TEXT,
     state TEXT NOT NULL, state_data TEXT NOT NULL DEFAULT '{}',
     joined_on TEXT NOT NULL
 );
@@ -60,10 +60,11 @@ class Database:
 
     def _migrate(self):
         # databases created before weekly tasks existed lack the snapshot column
-        cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(checkins)")}
-        if "task_title" not in cols:
-            self.conn.execute("ALTER TABLE checkins ADD COLUMN task_title TEXT")
-            self.conn.commit()
+        for table, column in (("checkins", "task_title"), ("users", "display_name")):
+            cols = {r["name"] for r in self.conn.execute(f"PRAGMA table_info({table})")}
+            if column not in cols:
+                self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} TEXT")
+        self.conn.commit()
 
     def _seed_tasks(self):
         if not self.conn.execute("SELECT 1 FROM weekly_tasks LIMIT 1").fetchone():

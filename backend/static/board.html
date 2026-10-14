@@ -239,10 +239,17 @@ function taskCard(t) {
     title, desc, el("div", { class: "actions" }, save, msg));
 }
 
+// nickname alone is ambiguous: add the LINE name (searchable in LINE OA Manager) and a short ref
+function whoNote(x) {
+  const bits = [x.display_name ? "LINE: " + x.display_name : null, x.ref ? "#" + x.ref : null].filter(Boolean);
+  return bits.length ? el("span", { class: "muted", text: bits.join(" · ") }) : null;
+}
+
 function learnerCard(l) {
   return el("div", { class: "card " + l.level },
     el("div", { class: "top" },
       el("span", { class: "name", text: l.nickname || "(ไม่ระบุชื่อ)" }),
+      whoNote(l),
       el("span", { class: "badge " + l.level, text: "ความเสี่ยง" + LABEL.level[l.level] }),
       el("span", { class: "muted", text: "คะแนน " + l.score }),
       l.last_progress ? el("span", { class: "muted", text: "ล่าสุด: " + LABEL.progress[l.last_progress] }) : null),
@@ -259,6 +266,7 @@ function helpCard(r) {
   return el("div", { class: "card " + (r.status === "waiting" ? "high" : r.status === "closed" ? "normal" : "medium") },
     el("div", { class: "top" },
       el("span", { class: "name", text: "#" + r.id + " " + (r.nickname || "(ไม่ระบุชื่อ)") }),
+      whoNote(r),
       el("span", { class: "badge info", text: LABEL.cat[r.category] || r.category }),
       el("span", { class: "badge " + (r.status === "waiting" ? "high" : r.status === "closed" ? "normal" : "medium"), text: LABEL.status[r.status] }),
       el("span", { class: "muted", text: isNaN(created) ? "" : created.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" }) })),

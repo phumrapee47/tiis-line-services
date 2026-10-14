@@ -377,3 +377,155 @@ def test_tasks_api_requires_token(db, bot, monkeypatch):
 def test_board_page_has_the_task_editor(db, bot):
     page = create_app(db, bot).test_client().get("/board").get_data(as_text=True)
     assert "งานรายสัปดาห์" in page and "/api/tasks" in page
+
+
+# ---- check-ins only in weeks 1-4 --------------------------------------------------------
+@pytest.mark.parametrize("day,allowed", [
+    (-3, True),    # before the start date: allowed so the bot can be tried in advance
+    (0, True), (27, True),     # day 1 and day 28 (last main-activity day)
+    (28, False), (41, False),  # day 29 .. day 42: follow-up weeks
+    (60, False),               # after the project ended
+])
+def test_checkin_is_open_only_during_the_main_activity(bot, db, clock, day, allowed):
+    c = register(bot)
+    clock.d = config.PROJECT_START + timedelta(days=day)
+    c.say("รายงานความคืบหน้า")
+    assert ("ความคืบหน้าของงานนี้" in c.text) == allowed, c.text
+    if not allowed:
+        assert "ช่วงติดตามผล" in c.text
+        assert db.get_user("U1")["state"] == "idle"     # nothing started, nothing half-saved
+        c.event({"type": "postback", "data": "s=idle&v=checkin_edit"})  # old "แก้ไข" button
+        assert "ช่วงติดตามผล" in c.text and db.get_user("U1")["state"] == "idle"
+        assert db.get_checkin("U1", 5) is None and db.get_checkin("U1", 6) is None
+
+
+def test_status_in_followup_weeks_does_not_say_report_missing(bot, clock):
+    c = register(bot)
+    clock.d = config.PROJECT_START + timedelta(days=30)
+    c.say("สถานะของฉัน")
+    assert "ช่วงติดตามผล" in c.text and "ยังไม่ได้ส่ง" not in c.text
+
+
+def test_learner_who_reported_every_week_is_not_flagged_in_followup_weeks(bot, db, clock):
+    c = register(bot)
+    for week in (1, 2, 3, 4):
+        clock.d = config.PROJECT_START + timedelta(days=7 * (week - 1))
+        checkin(c, "เสร็จแล้ว", 5)
+    for day in (30, 38):     # weeks 5 and 6: no check-in possible, so none can be "missed"
+        clock.d = config.PROJECT_START + timedelta(days=day)
+        row = triage.triage(db, clock.d)[0]
+        assert row["level"] == "normal", (day, row["reasons"])
+
+
+# ---- telling learners apart ---------------------------------------------------------------
+def test_same_nickname_learners_get_different_refs(client, bot):
+    register(bot, "U1111aaaa", "เอ")
+    register(bot, "U2222bbbb", "เอ")
+    learners = client.get("/api/triage").get_json()["learners"]
+    refs = {row["ref"] for row in learners}
+    assert refs == {"aaaa", "bbbb"} and all("user_id" not in row for row in learners)
+
+
+def test_help_list_carries_display_name_and_ref(client, bot, db):
+    c = register(bot, "Uabcdef1234", "เอ")
+    db.update_user("Uabcdef1234", display_name="Alice ✨")
+    c.say("ขอความช่วยเหลือ")
+    c.tap("เนื้อหา")
+    c.tap("ข้าม")
+    row = client.get("/api/help").get_json()["requests"][0]
+    assert (row["display_name"], row["ref"]) == ("Alice ✨", "1234") and "user_id" not in row
+
+
+def test_get_profile_returns_display_name_or_none(monkeypatch):
+    class Resp:
+        def __init__(self, status, body):
+            self.status_code, self._body = status, body
+
+        def json(self):
+            return self._body
+
+    monkeypatch.setattr(line_adapter.requests, "get", lambda *a, **k: Resp(200, {"displayName": " Bob "}))
+    assert line_adapter.get_profile("U1", "tok") == "Bob"
+    monkeypatch.setattr(line_adapter.requests, "get", lambda *a, **k: Resp(200, {}))
+    assert line_adapter.get_profile("U1", "tok") is None
+    monkeypatch.setattr(line_adapter.requests, "get", lambda *a, **k: Resp(404, {}))
+    assert line_adapter.get_profile("U1", "tok") is None
+
+    def boom(*a, **k):
+        raise line_adapter.requests.ConnectionError("down")
+    monkeypatch.setattr(line_adapter.requests, "get", boom)
+    assert line_adapter.get_profile("U1", "tok") is None
+
+
+def _signed(body_dict):
+    body = json.dumps(body_dict).encode()
+    return body, base64.b64encode(hmac.new(b"s3cret", body, hashlib.sha256).digest()).decode()
+
+
+def _line_event(user, text_or_data, kind, n):
+    ev = {"source": {"userId": user}, "replyToken": f"rt{n}", "webhookEventId": f"w{n}"}
+    if kind == "follow":
+        ev["type"] = "follow"
+    else:
+        ev.update(type="postback", postback={"data": text_or_data})
+    return {"events": [ev]}
+
+
+def test_profile_is_fetched_once_and_only_after_consent(client, db, monkeypatch):
+    monkeypatch.setattr(config, "LINE_CHANNEL_SECRET", "s3cret")
+    monkeypatch.setattr(config, "LINE_CHANNEL_TOKEN", "tok")
+    monkeypatch.setattr(line_adapter, "reply", lambda *a: True)
+    lookups = []
+    monkeypatch.setattr(line_adapter, "get_profile", lambda uid, tok: lookups.append(uid) or "Carol")
+
+    def send(payload):
+        body, sig = _signed(payload)
+        assert client.post("/webhook", data=body, headers={"X-Line-Signature": sig}).status_code == 200
+
+    send(_line_event("Uc1", "", "follow", 1))                      # asked for consent, not given yet
+    assert lookups == [] and db.get_user("Uc1")["display_name"] is None
+    send(_line_event("Uc1", "s=consent&v=yes", "postback", 2))     # consented
+    assert lookups == ["Uc1"] and db.get_user("Uc1")["display_name"] == "Carol"
+    send(_line_event("Uc1", "s=nickname&v=x", "postback", 3))      # later messages: no new lookup
+    assert lookups == ["Uc1"]
+
+
+def test_declining_consent_never_triggers_a_profile_lookup(client, db, monkeypatch):
+    monkeypatch.setattr(config, "LINE_CHANNEL_SECRET", "s3cret")
+    monkeypatch.setattr(config, "LINE_CHANNEL_TOKEN", "tok")
+    monkeypatch.setattr(line_adapter, "reply", lambda *a: True)
+    lookups = []
+    monkeypatch.setattr(line_adapter, "get_profile", lambda uid, tok: lookups.append(uid) or "Dan")
+    for n, (kind, data) in enumerate([("follow", ""), ("postback", "s=consent&v=no")], 1):
+        body, sig = _signed(_line_event("Ud1", data, kind, n))
+        client.post("/webhook", data=body, headers={"X-Line-Signature": sig})
+    assert lookups == [] and db.get_user("Ud1") is None
+
+
+def test_failed_profile_lookup_does_not_break_the_reply_and_is_not_retried_each_message(client, db, monkeypatch):
+    monkeypatch.setattr(config, "LINE_CHANNEL_SECRET", "s3cret")
+    monkeypatch.setattr(config, "LINE_CHANNEL_TOKEN", "tok")
+    replies, lookups = [], []
+    monkeypatch.setattr(line_adapter, "reply", lambda tok, msgs, t: replies.append(msgs) or True)
+    monkeypatch.setattr(line_adapter, "get_profile", lambda uid, tok: lookups.append(uid))  # returns None
+    for n, data in enumerate(["", "s=consent&v=yes", "s=nickname&v=x"], 1):
+        body, sig = _signed(_line_event("Ue1", data, "follow" if n == 1 else "postback", n))
+        assert client.post("/webhook", data=body, headers={"X-Line-Signature": sig}).status_code == 200
+    assert len(replies) == 3 and lookups == ["Ue1"]
+
+
+def test_old_users_table_gets_display_name_column_and_keeps_rows(tmp_path):
+    import sqlite3
+    from backend.db import Database
+    path = tmp_path / "old_users.db"
+    old = sqlite3.connect(path)
+    old.executescript("""
+        CREATE TABLE users (user_id TEXT PRIMARY KEY, nickname TEXT, goal TEXT,
+            state TEXT NOT NULL, state_data TEXT NOT NULL DEFAULT '{}', joined_on TEXT NOT NULL);
+        INSERT INTO users (user_id, nickname, state, joined_on) VALUES ('U1', 'เอ', 'idle', '2026-10-19');""")
+    old.commit()
+    old.close()
+    migrated = Database(str(path))
+    assert migrated.get_user("U1")["nickname"] == "เอ" and migrated.get_user("U1")["display_name"] is None
+    migrated.update_user("U1", display_name="Alice")
+    assert migrated.get_user("U1")["display_name"] == "Alice"

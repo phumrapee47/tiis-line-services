@@ -4,6 +4,7 @@ import base64
 import hashlib
 import hmac
 import logging
+from urllib.parse import quote
 
 import requests
 
@@ -55,6 +56,20 @@ def to_line(messages):
             } for q in quick[:MAX_QUICK]]}
         out.append(item)
     return out
+
+
+def get_profile(user_id, token):
+    """The learner's LINE display name (what the team sees in LINE Official Account Manager), or None."""
+    try:
+        r = requests.get(f"https://api.line.me/v2/bot/profile/{quote(user_id, safe='')}", timeout=5,
+                         headers={"Authorization": f"Bearer {token}"})
+    except requests.RequestException as e:
+        log.error("LINE profile error: %s", e)
+        return None
+    if r.status_code != 200:
+        log.error("LINE profile failed: %s", r.status_code)
+        return None
+    return (r.json().get("displayName") or "").strip() or None
 
 
 def _post(path, body, token):

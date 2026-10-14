@@ -51,6 +51,12 @@ def today() -> date:
     return date.fromisoformat(DEMO_TODAY) if DEMO_TODAY else datetime.now(THAI_TZ).date()
 
 
+def in_checkin_period(d: date) -> bool:
+    """Weekly reports happen during the main activity (weeks 1-4). Before the start date is allowed
+    so the bot can be tried out in advance; weeks 5-6 are follow-up only."""
+    return (d - PROJECT_START).days < MAIN_ACTIVITY_DAYS
+
+
 def week_no(d: date) -> int:
     """Project week 1..6 (clamped so demos outside the window still work)."""
     return min(max((d - PROJECT_START).days // 7 + 1, 1), PROJECT_DAYS // 7)

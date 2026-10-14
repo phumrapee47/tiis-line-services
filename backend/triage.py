@@ -5,6 +5,7 @@ from datetime import date
 
 from . import messages as M
 from .config import today as default_today, week_no
+from .tasks import WEEKS
 
 W_HELP_WAITING = 50
 W_HELP_ACCEPTED = 30
@@ -18,12 +19,18 @@ W_MISSED_1 = 10
 HIGH, MEDIUM = 40, 20
 
 
+def short_ref(user_id):
+    """Last 4 characters of the LINE id: tells same-nickname learners apart without exposing the full id."""
+    return user_id[-4:].lower()
+
+
 def missed_weeks(db, user, today):
     """Completed weeks (last 2) in which the user had joined but sent no check-in."""
     cur = week_no(today)
     joined = week_no(date.fromisoformat(user["joined_on"]))
     done = db.checkin_weeks(user["user_id"])
-    return sum(1 for w in range(max(joined, cur - 2), cur) if w not in done)
+    # only weeks that had a check-in to miss: follow-up weeks 5-6 never count
+    return sum(1 for w in range(max(joined, cur - 2), min(cur, max(WEEKS) + 1)) if w not in done)
 
 
 def score_user(db, user, today):
@@ -65,8 +72,8 @@ def score_user(db, user, today):
         reasons.append("ไม่ส่งรายงานสัปดาห์ที่แล้ว")
 
     level = "high" if score >= HIGH else "medium" if score >= MEDIUM else "normal"
-    return {"user_id": uid, "nickname": user["nickname"], "score": score, "level": level,
-            "reasons": reasons or ["ปกติ"], "last_progress": c["progress"] if c else None}
+    return {"user_id": uid, "nickname": user["nickname"], "display_name": user.get("display_name"),
+            "ref": short_ref(uid), "score": score, "level": level, "reasons": reasons or ["ปกติ"], "last_progress": c["progress"] if c else None}
 
 
 def triage(db, today=None):

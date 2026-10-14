@@ -62,6 +62,17 @@ def create_app(db=None, bot=None):
     def health():
         return jsonify(ok=True)
 
+    profile_tried = set()  # one attempt per learner per process: a failing lookup must not slow every message
+
+    def remember_profile(user_id):
+        u = db.get_user(user_id)
+        if not u or u["state"] == "consent" or u["display_name"] or user_id in profile_tried:
+            return  # never look up someone who has not consented
+        profile_tried.add(user_id)
+        name = line_adapter.get_profile(user_id, config.LINE_CHANNEL_TOKEN)
+        if name:
+            db.update_user(user_id, display_name=name[:100])
+
     @app.post("/webhook")
     def webhook():
         if not config.LINE_CHANNEL_SECRET or not config.LINE_CHANNEL_TOKEN:
@@ -78,6 +89,7 @@ def create_app(db=None, bot=None):
             msgs = bot.handle(user_id, event)
             if msgs and reply_token:
                 line_adapter.reply(reply_token, msgs, config.LINE_CHANNEL_TOKEN)
+            remember_profile(user_id)  # after replying, so it never delays the answer
         return jsonify(ok=True)  # always 200 once verified, so LINE does not retry endlessly
 
     @app.post("/api/sim/event")
@@ -119,7 +131,9 @@ def create_app(db=None, bot=None):
         for r in db.list_help(status):
             user = db.get_user(r["user_id"])
             rows.append({**{k: v for k, v in r.items() if k != "user_id"},
-                         "nickname": user["nickname"] if user else None})
+                         "nickname": user["nickname"] if user else None,
+                         "display_name": user["display_name"] if user else None,
+                         "ref": triage.short_ref(r["user_id"])})
         return jsonify(requests=rows)
 
     @app.post("/api/help/<int:help_id>/status")

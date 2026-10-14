@@ -33,7 +33,7 @@ def _menu_quick():
 # onboarding
 def consent():
     return text("สวัสดี 👋 ยินดีต้อนรับ!\nแชทนี้ช่วยให้รายงานความคืบหน้าและขอความช่วยเหลือจากทีมได้ง่ายๆ "
-                "ใช้เวลาไม่ถึงนาที\n\nเราจะเก็บชื่อเล่น เป้าหมาย และคำตอบที่ส่งมา เพื่อให้ทีมช่วยได้ตรงจุด "
+                "ใช้เวลาไม่ถึงนาที\n\nเราจะเก็บชื่อเล่น เป้าหมาย คำตอบที่ส่งมา และชื่อที่แสดงใน LINE (เพื่อให้ทีมหาคุณเจอ) เพื่อให้ทีมช่วยได้ตรงจุด "
                 "ใช้เฉพาะในโครงการนี้เท่านั้น ยินยอมไหม?",
                 [qr("ยินยอม", "consent", "yes"), qr("ไม่ยินยอม", "consent", "no")])
 
@@ -66,6 +66,12 @@ def task_line(week, task):
         return ""
     desc = f"\n{task['description']}" if task.get("description") else ""
     return f"📌 งานสัปดาห์ที่ {week}: {task['title']}{desc}\n\n"
+
+
+def followup_phase():
+    return text("ตอนนี้เป็นช่วงติดตามผลแล้ว 🙌 ไม่ต้องรายงานความคืบหน้ารายสัปดาห์อีก "
+                "เราจะส่งคำถามสั้นๆ ถามว่านำสิ่งที่ทำไปใช้จริงไหม ถ้าติดอะไรกด 'ขอความช่วยเหลือ' ได้เลย",
+                _menu_quick())
 
 
 def ask_progress(week, task=None):
@@ -143,11 +149,15 @@ def help_status_changed(help_id, status):
 
 
 # status / info / resume / fallback
-def status(week, checkin, helps, task=None):
+def status(week, checkin, helps, task=None, in_period=True):
     lines = [f"สถานะของคุณ (สัปดาห์ที่ {week})"]
-    if task:
+    if not in_period:
+        lines.append("• ช่วงติดตามผล: ไม่ต้องรายงานรายสัปดาห์")
+    elif task:
         lines.append(f"• งานสัปดาห์นี้: {task['title']}")
-    if checkin:
+    if not in_period:
+        pass
+    elif checkin:
         lines.append(f"• รายงานสัปดาห์นี้: ส่งแล้ว ({PROGRESS[checkin['progress']]}, มั่นใจ {checkin['confidence']}/5)")
     else:
         lines.append("• รายงานสัปดาห์นี้: ยังไม่ได้ส่ง")

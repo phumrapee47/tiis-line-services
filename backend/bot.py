@@ -9,7 +9,7 @@ import re
 from urllib.parse import parse_qs
 
 from . import messages as M
-from .config import today as default_today, week_no
+from .config import in_checkin_period, today as default_today, week_no
 
 ONBOARD = {"consent", "nickname", "goal"}
 CI_STATES = {"ci_progress", "ci_conf", "ci_blocker", "ci_blocker_text", "ci_contact", "ci_edit"}
@@ -157,7 +157,7 @@ class Bot:
     def _status(self, uid):
         week = week_no(self.today())
         return M.status(week, self.db.get_checkin(uid, week), self.db.user_help(uid, 3),
-                        self.db.get_task(week))
+                        self.db.get_task(week), in_checkin_period(self.today()))
 
     # ---- onboarding -----------------------------------------------------------------
     def _on_consent(self, user, data, val):
@@ -186,6 +186,8 @@ class Bot:
 
     # ---- check-in -------------------------------------------------------------------
     def _start_checkin(self, uid, edit):
+        if not in_checkin_period(self.today()):
+            return [M.followup_phase()]  # weeks 5-6: nothing to report, state untouched
         week = week_no(self.today())
         existing = self.db.get_checkin(uid, week)
         if existing and not edit:
