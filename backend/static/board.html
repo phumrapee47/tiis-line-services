@@ -14,17 +14,35 @@
   --ok: #1B6B3F; --ok-bg: #E6F4EC;
   --info: #1F4FBF; --info-bg: #E8EEFC;
   --slate: #475268; --slate-bg: #E9ECF1;
+  --c-ok: #1E9B53; --c-info: #2F6FDE; --c-attn: #C27A00; --c-urgent: #D93A3A; --c-slate: #5B6B86; --c-none: #8A94A6;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 2px 8px rgba(16, 24, 40, .05);
+  color-scheme: light;
   --font: system-ui, "Noto Sans Thai", "Sarabun", "Segoe UI", sans-serif;
 }
+:root[data-theme="dark"] {
+  --bg: #12151B; --card: #1C222C; --text: #E8EBF1; --muted: #A3ACBC; --line: #2E3646; --bs: #7C869A;
+  --focus: #8FB0FF; --on-strong: #12151B;
+  --urgent: #FF8F85; --urgent-bg: #3B1E1D;
+  --attn: #F2B84B; --attn-bg: #3A2E14;
+  --ok: #6FCF97; --ok-bg: #173324;
+  --info: #8FB0FF; --info-bg: #1C2A4D;
+  --slate: #AEB7C9; --slate-bg: #262D3B;
+  --c-ok: #4CC38A; --c-info: #6FA0FF; --c-attn: #F2B84B; --c-urgent: #FF7A70; --c-slate: #8C9AB5; --c-none: #7C869A;
+  --shadow: none;
+  color-scheme: dark;
+}
 @media (prefers-color-scheme: dark) {
-  :root {
-    --bg: #12151B; --card: #1C222C; --text: #E8EBF1; --muted: #A3ACBC; --line: #2E3646; --bs: #7C869A;
-    --focus: #8FB0FF; --on-strong: #12151B;
-    --urgent: #FF8F85; --urgent-bg: #3B1E1D;
-    --attn: #F2B84B; --attn-bg: #3A2E14;
-    --ok: #6FCF97; --ok-bg: #173324;
-    --info: #8FB0FF; --info-bg: #1C2A4D;
-    --slate: #AEB7C9; --slate-bg: #262D3B;
+  :root:not([data-theme="light"]) {
+  --bg: #12151B; --card: #1C222C; --text: #E8EBF1; --muted: #A3ACBC; --line: #2E3646; --bs: #7C869A;
+  --focus: #8FB0FF; --on-strong: #12151B;
+  --urgent: #FF8F85; --urgent-bg: #3B1E1D;
+  --attn: #F2B84B; --attn-bg: #3A2E14;
+  --ok: #6FCF97; --ok-bg: #173324;
+  --info: #8FB0FF; --info-bg: #1C2A4D;
+  --slate: #AEB7C9; --slate-bg: #262D3B;
+  --c-ok: #4CC38A; --c-info: #6FA0FF; --c-attn: #F2B84B; --c-urgent: #FF7A70; --c-slate: #8C9AB5; --c-none: #7C869A;
+  --shadow: none;
+  color-scheme: dark;
   }
 }
 * { box-sizing: border-box; }
@@ -239,15 +257,6 @@ main { padding: 8px 0 88px; }
 .legend tr.hot th, .legend tr.hot td { font-weight: 700; }
 .legend .sw { display: inline-flex; align-items: center; gap: 8px; }
 .legend .sw svg { flex: none; width: 20px; height: 20px; }
-.k-urgent .base { fill: var(--urgent); } .k-urgent .edge { stroke: var(--urgent); }
-.k-attn .base { fill: var(--attn-bg); } .k-attn .edge { stroke: var(--attn); }
-.k-ok .base { fill: var(--ok-bg); } .k-ok .edge { stroke: var(--ok); }
-.k-info .base { fill: var(--info-bg); } .k-info .edge { stroke: var(--info); }
-.k-slate .base { fill: var(--slate-bg); } .k-slate .edge { stroke: var(--slate); }
-.k-none .base { fill: var(--card); } .k-none .edge { stroke: var(--bs); stroke-dasharray: 4 3; }
-.edge { fill: none; stroke-width: 1.5; }
-.p-attn * { stroke: var(--attn); } .p-info * { stroke: var(--info); } .p-slate * { stroke: var(--slate); }
-.p-ok circle { fill: var(--ok); stroke: none; }
 .track { fill: var(--line); }
 .donut-pct { fill: var(--text); font: 700 30px var(--font); }
 .ranklist { display: grid; gap: 12px; }
@@ -262,11 +271,6 @@ main { padding: 8px 0 88px; }
 .acc-btn[aria-expanded="true"] .chev { transform: rotate(90deg); }
 .acc-btn .chev { transition: transform .12s; }
 .trunc { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
-.dashed .edge { stroke-dasharray: 4 3; }
-.k-ok .dbase { stroke: var(--ok-bg); } .k-attn .dbase { stroke: var(--attn-bg); }
-.k-ok .dedge { stroke: var(--ok); } .k-attn .dedge { stroke: var(--attn); }
-.dbase { fill: none; } .dedge { fill: none; stroke-width: 1.5; }
-.sepline { stroke: var(--card); stroke-width: 3; }
 .baseline { stroke: var(--bs); stroke-width: 1.5; }
 .sw { display: inline-flex; align-items: center; gap: 8px; }
 .legendline { display: flex; gap: 16px; flex-wrap: wrap; }
@@ -286,8 +290,6 @@ main { padding: 8px 0 88px; }
 .saverow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 
 /* ===== dashboard shell: sidebar on wide screens, KPI tiles and a card grid for the weekly overview ===== */
-:root { --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 2px 8px rgba(16, 24, 40, .05); }
-@media (prefers-color-scheme: dark) { :root { --shadow: none; } }
 .side { display: contents; }
 .content { min-width: 0; }
 .side .top { padding: 12px 16px 8px; }
@@ -356,6 +358,28 @@ details.tbl[open] > summary { margin-bottom: 4px; }
 .startbox input[type="date"] { min-height: 48px; }
 .startbox .warnline { display: flex; gap: 8px; align-items: flex-start; color: var(--attn); font-weight: 600; }
 
+/* chart colours: solid fills, one colour = one meaning on every chart (labels and numbers still sit next to every mark) */
+.k-ok .base { fill: var(--c-ok); } .k-info .base { fill: var(--c-info); } .k-attn .base { fill: var(--c-attn); }
+.k-urgent .base { fill: var(--c-urgent); } .k-slate .base { fill: var(--c-slate); } .k-none .base { fill: var(--c-none); }
+.arc { fill: none; }
+.a-ok { stroke: var(--c-ok); } .a-attn { stroke: var(--c-attn); } .a-info { stroke: var(--c-info); } .a-none { stroke: var(--c-none); }
+.meter .fillbar { fill: var(--c-info); }
+
+/* theme switch (sidebar footer on wide screens, header on small ones) */
+.themeset { display: grid; gap: 8px; }
+.themeset .lbl { font-size: 14px; color: var(--muted); }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1.5px solid var(--bs); border-radius: 10px; overflow: hidden; }
+.seg button { min-height: 44px; padding: 6px 12px; border: 0; background: var(--card); color: var(--text); font: 600 15px/1.4 var(--font); cursor: pointer; }
+.seg button + button { border-left: 1.5px solid var(--bs); }
+.seg button[aria-pressed="true"] { background: var(--info); color: var(--on-strong); }
+.seg button:hover:not([aria-pressed="true"]) { background: var(--slate-bg); }
+.sidefoot { display: none; }
+.themetop { margin-top: 4px; }
+@media (min-width: 1000px) {
+  .sidefoot { display: grid; gap: 8px; margin-top: auto; padding: 16px 8px 0; border-top: 1px solid var(--line); }
+  .themetop { display: none; }
+}
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
@@ -374,8 +398,22 @@ details.tbl[open] > summary { margin-bottom: 4px; }
         <span id="updated" class="small muted">กำลังโหลดข้อมูล...</span>
         <button id="refreshBtn" class="btn" type="button">รีเฟรช</button>
       </div>
+      <div class="themetop seg" role="group" aria-label="โหมดสี">
+        <button type="button" data-theme-set="light" aria-pressed="false">สว่าง</button>
+        <button type="button" data-theme-set="dark" aria-pressed="false">มืด</button>
+      </div>
     </header>
     <nav class="nav" aria-label="เมนูหลัก"><ul id="navList"></ul></nav>
+    <div class="sidefoot" aria-label="ตั้งค่า board">
+      <p class="strong">ตั้งค่า</p>
+      <div class="themeset">
+        <span class="lbl" id="themeLbl">โหมดสี</span>
+        <div class="seg" role="group" aria-labelledby="themeLbl">
+          <button type="button" data-theme-set="light" aria-pressed="false">สว่าง</button>
+          <button type="button" data-theme-set="dark" aria-pressed="false">มืด</button>
+        </div>
+      </div>
+    </div>
   </aside>
 
   <div class="content">
@@ -462,6 +500,29 @@ details.tbl[open] > summary { margin-bottom: 4px; }
 
 <script>
 "use strict";
+
+/* ---- colour mode: follows the system until the user picks one; the pick is remembered in this browser ---- */
+const THEME_KEY = "boardTheme";
+(function applySavedTheme() {
+  try {
+    const v = localStorage.getItem(THEME_KEY);
+    if (v === "dark" || v === "light") document.documentElement.setAttribute("data-theme", v);
+  } catch (e) { /* storage blocked: keep following the system */ }
+})();
+function currentTheme() {
+  const v = document.documentElement.getAttribute("data-theme");
+  if (v === "dark" || v === "light") return v;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+function syncThemeButtons() {
+  const now = currentTheme();
+  document.querySelectorAll("[data-theme-set]").forEach((b) => b.setAttribute("aria-pressed", String(b.getAttribute("data-theme-set") === now)));
+}
+function chooseTheme(v) {
+  document.documentElement.setAttribute("data-theme", v);
+  try { localStorage.setItem(THEME_KEY, v); } catch (e) { /* not remembered */ }
+  syncThemeButtons();
+}
 /* ============ core: DOM helpers, state, server calls, sign-in ============ */
 const SVG_NS = "http://www.w3.org/2000/svg";
 const REFRESH_MS = 30000;
@@ -1052,28 +1113,10 @@ function renderHelp() {
 }
 
 /* ============ charts: SVG for the shapes, real text for every number ============ */
-function buildDefs() {
-  const svg = s("svg", { class: "defs", width: 0, height: 0, "aria-hidden": "true", focusable: "false" });
-  const defs = s("defs");
-  const pattern = (id, transform, kids) => {
-    const p = s("pattern", { id: "pat-" + id, class: "p-" + id, width: 8, height: 8, patternUnits: "userSpaceOnUse" }, ...kids);
-    if (transform) p.setAttribute("patternTransform", transform);
-    defs.appendChild(p);
-  };
-  pattern("attn", "rotate(45)", [s("line", { x1: 0, y1: 0, x2: 0, y2: 8, "stroke-width": 2.5 })]);
-  pattern("ok", null, [s("circle", { cx: 4, cy: 4, r: 1.6 })]);
-  pattern("info", null, [s("line", { x1: 0, y1: 4, x2: 8, y2: 4, "stroke-width": 2.5 })]);
-  pattern("slate", null, [s("line", { x1: 0, y1: 0, x2: 8, y2: 8, "stroke-width": 1.5 }), s("line", { x1: 8, y1: 0, x2: 0, y2: 8, "stroke-width": 1.5 })]);
-  svg.appendChild(defs);
-  document.body.appendChild(svg);
-}
-
-/* one segment of any chart: solid fill (urgent) or tinted fill + pattern + outline, so it reads in grayscale */
+/* one segment of any chart: a solid fill (the legend row and the numbers beside it carry the label) */
 function segGroup(kind, x, y, w, ht, rx, dashed) {
   const g = s("g", { class: "k-" + kind + (dashed ? " dashed" : "") });
   g.appendChild(s("rect", { class: "base", x, y, width: w, height: ht, rx }));
-  if (kind !== "urgent" && kind !== "none") g.appendChild(s("rect", { x, y, width: w, height: ht, rx, fill: "url(#pat-" + kind + ")" }));
-  g.appendChild(s("rect", { class: "edge", x: x + 0.75, y: y + 0.75, width: Math.max(w - 1.5, 0), height: Math.max(ht - 1.5, 0), rx }));
   return g;
 }
 function swatch(kind) {
@@ -1099,22 +1142,11 @@ function donut(reported, total, label, pct) {
   const segs = [{ kind: "ok", n: reported }, { kind: "attn", n: total - reported }].filter((x) => x.n > 0);
   let off = 0;
   segs.forEach((sg) => {
-    const len = (C * sg.n) / total;
-    const dash = { cx: 80, cy: 80, fill: "none", transform: "rotate(-90 80 80)", "stroke-dasharray": len + " " + (C - len), "stroke-dashoffset": -off };
-    const g = s("g", { class: "k-" + sg.kind });
-    g.appendChild(s("circle", { ...dash, r: R, class: "dbase", "stroke-width": 26 }));
-    g.appendChild(s("circle", { ...dash, r: R, stroke: "url(#pat-" + sg.kind + ")", "stroke-width": 26 }));
-    g.appendChild(s("circle", { ...dash, r: 72, class: "dedge" }));
-    g.appendChild(s("circle", { ...dash, r: 46, class: "dedge" }));
-    svg.appendChild(g);
+    const len = (C * sg.n) / total, shown = Math.max(len - (segs.length > 1 ? 2.5 : 0), 0);   // a small gap between the two arcs
+    svg.appendChild(s("circle", { class: "arc a-" + sg.kind, cx: 80, cy: 80, r: R, "stroke-width": 24, transform: "rotate(-90 80 80)",
+      "stroke-dasharray": shown + " " + (C - shown), "stroke-dashoffset": -off }));
     off += len;
   });
-  if (segs.length === 2) {
-    const th = (2 * Math.PI * reported) / total;
-    [[0, 0], [Math.sin(th), -Math.cos(th)]].forEach((v) => {
-      svg.appendChild(s("line", { class: "sepline", x1: 80 + v[0] * 46, y1: 80 + v[1] * 46, x2: 80 + v[0] * 73, y2: 80 + v[1] * 73 }));
-    });
-  }
   const t = s("text", { x: 80, y: 80, "text-anchor": "middle", "dominant-baseline": "central", class: "donut-pct" });
   t.textContent = pct;
   svg.appendChild(t);
@@ -1252,7 +1284,7 @@ function chartC(r) {
       const n = agg[k], lab = BLOCKER_NAME[k] + " " + n + " จาก " + total + " คน";
       const bar = s("svg", { viewBox: "0 0 320 14", class: "chart-svg", role: "img", "aria-label": lab, preserveAspectRatio: "xMinYMid meet" },
         s("rect", { class: "track", x: 0, y: 0, width: 320, height: 14, rx: 4 }),
-        segGroup("slate", 0, 0, Math.max((320 * n) / total, 6), 14, 4));
+        segGroup("info", 0, 0, Math.max((320 * n) / total, 6), 14, 4));
       return h("li", null, h("div", { class: "rank-top" }, h("span", { text: BLOCKER_NAME[k] }), h("span", { text: n + " จาก " + total + " คน (" + pctText(n, total) + ")" })), bar);
     })),
     h("p", { class: "note", text: "ตัวเลขเปอร์เซ็นต์ปัดเศษ" }));
@@ -1390,7 +1422,7 @@ function renderTrend() {
     s("line", { class: "baseline", x1: padL, y1: base, x2: W, y2: base }));
   S.trend.forEach((t, i) => {
     const x = padL + i * step + (step - colW) / 2;
-    svg.appendChild(stext({ class: "xlabel", x: x + colW / 2, y: base + 22, "text-anchor": "middle" }, "สัปดาห์ " + t.week));
+    svg.appendChild(stext({ class: "xlabel", x: x + colW / 2, y: base + 22, "text-anchor": "middle" }, "สัปดาห์ " + t.week + (t.data && t.data.status === "open" ? " (เปิดอยู่)" : "")));
     if (!t.data || !num(t.data.eligible)) return;
     const el = num(t.data.eligible), rp = Math.min(num(t.data.reported), el);
     const hr = (plotH * rp) / maxE, hn = (plotH * (el - rp)) / maxE, open = t.data.status === "open";
@@ -1400,7 +1432,7 @@ function renderTrend() {
   });
   box.replaceChildren(
     h("div", { class: "legendline small" }, h("span", { class: "sw" }, swatch("ok"), " รายงานแล้ว  "), h("span", { class: "sw" }, swatch("attn"), " ยังไม่รายงาน"),
-      S.trend.some((t) => t.data && t.data.status === "open") ? h("span", { class: "muted", text: "(ลายเส้นประ = สัปดาห์ที่ยังเปิดรับ)" }) : null),
+      null),
     svg, details);
 }
 
@@ -1777,7 +1809,9 @@ function renderAll() {
 
 /* ============ wire up and start ============ */
 function init() {
-  buildDefs();
+  document.querySelectorAll("[data-theme-set]").forEach((b) => b.addEventListener("click", () => chooseTheme(b.getAttribute("data-theme-set"))));
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", syncThemeButtons);
+  syncThemeButtons();
   buildExportList();
   $("refreshBtn").addEventListener("click", () => loadAll("manual"));
   $("bannerRetry").addEventListener("click", () => loadAll("retry"));

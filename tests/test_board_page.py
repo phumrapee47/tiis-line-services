@@ -66,9 +66,18 @@ def test_no_inline_event_handlers_or_javascript_urls():
     assert not re.search(r"\.on[a-z]+\s*=[^=]", JS), "element.onxxx = assignment in JS"
 
 
-def test_page_stores_nothing_in_the_browser():
-    for banned in ("localStorage", "sessionStorage", "document.cookie", "indexedDB", "serviceWorker", "caches."):
+def test_the_only_thing_stored_in_the_browser_is_the_chosen_colour_mode():
+    for banned in ("sessionStorage", "document.cookie", "indexedDB", "serviceWorker", "caches."):
         assert banned not in SRC, banned
+    assert 'const THEME_KEY = "boardTheme"' in JS
+    calls = re.findall(r"localStorage\.(\w+)\(([^)]*)\)", JS)
+    assert {m for m, _ in calls} == {"getItem", "setItem"}, calls
+    assert all(arg.startswith("THEME_KEY") for _, arg in calls), calls
+    assert len(re.findall(r"localStorage", JS)) == len(calls)            # no other way of touching it
+    for call in re.findall(r"localStorage\.setItem\([^)]*\)", JS):
+        assert "chooseTheme" in JS[:JS.index(call) + 400] or "v)" in call or "THEME_KEY, v" in call, call
+    # what is saved is only "dark" or "light", validated before it is applied
+    assert 'v === "dark" || v === "light"' in JS
 
 
 def test_page_has_no_login_no_password_field_and_no_team_code():
@@ -278,9 +287,10 @@ def test_charts_are_hand_written_svg_with_text_alternatives():
     assert "viewBox" in JS and "preserveAspectRatio" in JS
     assert JS.count("legendTable(") >= 5          # a real table of numbers next to every chart
     assert "<caption" in JS.replace('"caption"', "<caption") or 'h("caption"' in JS
-    # pattern fills so segments differ in grayscale
-    for p in ("attn", "ok", "info", "slate"):
-        assert f'pattern("{p}"' in JS
+    # solid colours only: no pattern fills, no outlines (the legend rows and numbers carry the labels)
+    assert "pattern(" not in JS and "<pattern" not in SRC and "url(#pat-" not in SRC and "stroke-dasharray: 4 3" not in CSS
+    for kind in ("ok", "info", "attn", "urgent", "slate", "none"):
+        assert re.search(rf"\.k-{kind} \.base \{{ fill: var\(--c-{kind}\); \}}", CSS), kind
     # five main charts: A donut, B progress, C blockers, help status, follow-up
     for fn in ("function chartA", "function chartB", "function chartC", "function helpChart", "function followCard"):
         assert fn in JS, fn
@@ -331,7 +341,25 @@ def _vars(block):
 
 
 LIGHT = _vars(re.search(r":root\s*\{([^}]*)\}", CSS).group(1))
-DARK = {**LIGHT, **_vars(re.search(r"prefers-color-scheme:\s*dark\)\s*\{\s*:root\s*\{([^}]*)\}", CSS).group(1))}
+_DARK_CHOSEN = _vars(re.search(r':root\[data-theme="dark"\]\s*\{([^}]*)\}', CSS).group(1))
+_DARK_SYSTEM = _vars(re.search(r'prefers-color-scheme:\s*dark\)\s*\{\s*:root:not\(\[data-theme="light"\]\)\s*\{([^}]*)\}', CSS).group(1))
+DARK = {**LIGHT, **_DARK_CHOSEN}
+
+
+def test_dark_values_are_the_same_whether_chosen_by_the_user_or_by_the_system():
+    assert _DARK_CHOSEN == _DARK_SYSTEM and len(_DARK_CHOSEN) >= 18
+
+
+# chart fills must stand out from the card they sit on (WCAG 1.4.11, 3:1)
+@pytest.mark.parametrize("theme,palette", [("light", LIGHT), ("dark", DARK)])
+@pytest.mark.parametrize("var", ["--c-ok", "--c-info", "--c-attn", "--c-urgent", "--c-slate", "--c-none"])
+def test_solid_chart_colours_are_visible_on_the_card(theme, palette, var):
+    assert ratio(palette[var], palette["--card"]) >= UI, f"{theme} {var} {palette[var]} on the card"
+
+
+
+TEXT = 4.5
+UI = 3.0
 
 
 def _lum(hexcolor):
@@ -346,8 +374,6 @@ def ratio(a, b):
 
 
 # (foreground var, background var, minimum ratio, regex proving the CSS really pairs them)
-TEXT = 4.5
-UI = 3.0
 PAIRS = [
     ("--text", "--bg", TEXT, r"body\s*\{[^}]*background:\s*var\(--bg\);\s*color:\s*var\(--text\)"),
     ("--text", "--card", TEXT, r"\.btn\s*\{[^}]*background:\s*var\(--card\);\s*color:\s*var\(--text\)"),
@@ -833,3 +859,18 @@ def test_csv_neutralises_spreadsheet_formulas(app_client, bot, db):
     db.update_user("Uform00000aaaa", nickname="=HYPERLINK(\"http://evil\",\"x\")")
     text = app_client.get("/api/export.csv?kind=learners").get_data(as_text=True)
     assert ",=HYPERLINK" not in text and "\"=HYPERLINK" not in text
+
+
+# ---- colour mode switch ---------------------------------------------------------------------------------------
+def test_colour_mode_switch_is_in_the_sidebar_footer_and_the_header():
+    assert 'class="sidefoot"' in HTML and "ตั้งค่า board" in HTML and "โหมดสี" in HTML
+    assert HTML.count('data-theme-set="light"') == 2 and HTML.count('data-theme-set="dark"') == 2   # sidebar + small screens
+    assert re.search(r"\.sidefoot\s*\{\s*display:\s*none;\s*\}", CSS) and ".themetop { display: none; }" in CSS
+    assert re.search(r"@media \(min-width: 1000px\)\s*\{\s*\.sidefoot\s*\{[^}]*margin-top:\s*auto", CSS)   # pinned to the bottom
+    assert 'setAttribute("aria-pressed"' in JS and "syncThemeButtons" in JS and "chooseTheme" in JS
+
+
+def test_dark_mode_can_be_forced_or_forbidden_by_the_user_choice():
+    assert ':root[data-theme="dark"]' in CSS
+    assert ':root:not([data-theme="light"])' in CSS            # system dark applies unless the user chose light
+    assert "color-scheme: dark" in CSS and "color-scheme: light" in CSS
