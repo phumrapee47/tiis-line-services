@@ -265,7 +265,7 @@ def test_overview_markers():
               "ไม่ส่งมา ", "สัปดาห์นี้ยังไม่ส่ง", "รายงานล่าสุดสัปดาห์ที่", "ยังไม่เคยรายงาน", "ผลติดตามหลังกิจกรรมหลัก",
               'ส่วนแท็บ "ผู้เรียนที่ต้องตาม" รวมหลายเหตุผลเข้าด้วยกัน'):
         assert t in JS, t
-    assert "ความมั่นใจเฉลี่ย -" in JS and "/ 5" in JS
+    assert 'kpi("ความมั่นใจเฉลี่ย"' in JS and '? "-" :' in JS and "/ 5" in JS      # the tile shows "-" with no data
     # division guard: percentages never computed with a zero total
     assert "t > 0 ? Math.round" in JS
     assert not [lit for lit in LITERALS if re.search(r"NaN|undefined|null|Infinity", lit)]
@@ -284,7 +284,7 @@ def test_charts_are_hand_written_svg_with_text_alternatives():
     # five main charts: A donut, B progress, C blockers, help status, follow-up
     for fn in ("function chartA", "function chartB", "function chartC", "function helpChart", "function followCard"):
         assert fn in JS, fn
-    assert "แนวโน้ม 4 สัปดาห์" in JS and "Promise.allSettled" in JS
+    assert "แนวโน้มผู้รายงานรายสัปดาห์" in JS and "Promise.allSettled" in JS
 
 
 EXPECTED_CSV = [("learners", "รายชื่อผู้เรียนและระดับที่ต้องตาม"), ("checkins", "รายงานความคืบหน้ารายสัปดาห์"),

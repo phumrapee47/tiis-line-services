@@ -285,6 +285,67 @@ main { padding: 8px 0 88px; }
 .formgrid { display: grid; gap: 12px; }
 .saverow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
 
+/* ===== dashboard shell: sidebar on wide screens, KPI tiles and a card grid for the weekly overview ===== */
+:root { --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 2px 8px rgba(16, 24, 40, .05); }
+@media (prefers-color-scheme: dark) { :root { --shadow: none; } }
+.side { display: contents; }
+.content { min-width: 0; }
+.side .top { padding: 12px 16px 8px; }
+@media (min-width: 768px) { .side .top { padding: 12px 24px 8px; } }
+@media (min-width: 1000px) {
+  #appView { display: grid; grid-template-columns: 264px minmax(0, 1fr); min-height: 100vh; align-items: start; }
+  .side { display: flex; flex-direction: column; gap: 20px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    padding: 24px 16px; background: var(--card); border-right: 1px solid var(--line); }
+  .side .top { padding: 0 8px; gap: 8px; }
+  .side .top h1 { font-size: 22px; }
+  .side .top-row2 { display: grid; gap: 8px; justify-content: stretch; }
+  .nav { position: static; background: transparent; border: 0; padding: 0; }
+  .nav ul { flex-direction: column; gap: 4px; max-width: none; margin: 0; }
+  .nav li { flex: none; }
+  .nav a { flex-direction: row; justify-content: flex-start; gap: 10px; height: auto; min-height: 48px; padding: 8px 14px; border: 0;
+    border-radius: 10px; font-size: 16px; text-align: left; }
+  .nav a[aria-current="page"] { border: 0; background: var(--info-bg); color: var(--info); }
+  .nav a .badge-n { margin-left: auto; }
+  .content .wrap { max-width: 1320px; padding: 0 32px; }
+  main { padding: 24px 0 56px; }
+  .panel { padding-top: 0; }
+}
+
+.ovhead { display: grid; gap: 12px; }
+@media (min-width: 720px) { .ovhead { grid-template-columns: 1fr auto; align-items: end; } }
+.ovhead .weekbar { min-width: 260px; }
+.dash { display: grid; gap: 16px; }
+.kpis { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.kpis .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+@media (min-width: 720px) { .kpis { grid-template-columns: repeat(auto-fit, minmax(144px, 1fr)); } .kpis .kpi:last-child:nth-child(odd) { grid-column: auto; } }
+.kpi { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 4px; align-content: start;
+  min-width: 0; box-shadow: var(--shadow); }
+.kpi .k-label { font-size: 14px; color: var(--muted); line-height: 1.4; }
+.kpi .k-val { font-size: 32px; font-weight: 700; line-height: 1.2; }
+.kpi .k-sub { font-size: 14px; color: var(--muted); line-height: 1.4; }
+.kpi.tone-urgent { background: var(--urgent-bg); border-color: var(--urgent); }
+.kpi.tone-urgent .k-val { color: var(--urgent); }
+.kpi.tone-attn { background: var(--attn-bg); border-color: var(--attn); }
+.kpi.tone-attn .k-val { color: var(--attn); }
+.meter { display: block; width: 100%; height: 8px; margin: 2px 0; }
+.meter .fillbar { fill: var(--info); }
+.dgrid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); grid-auto-flow: dense; }
+@media (min-width: 720px) { .dgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dgrid > .span2 { grid-column: span 2; } }
+@media (min-width: 1180px) { .dgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.dgrid > .span-all { grid-column: 1 / -1; }
+.dgrid .chartcard, .dash > .chartcard { box-shadow: var(--shadow); border-radius: 14px; padding: 18px; align-content: start; }
+.dgrid .chartcard > h3 { font-size: 16px; }
+.dgrid .donutwrap { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+.dgrid .donutwrap .big { font-size: 20px; }
+.dgrid .cg.two { grid-template-columns: 1fr; }
+@media (min-width: 720px) { .dgrid > .span2 .cg.two { grid-template-columns: 1fr 1fr; } }
+.chart-svg.wide { max-width: none; }
+.gridline { stroke: var(--line); stroke-width: 1; }
+.vlabel { fill: var(--text); font: 600 13px var(--font); }
+.xlabel, .ylabel { fill: var(--muted); font: 13px var(--font); }
+details.tbl > summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; font-weight: 600; color: var(--info); }
+details.tbl[open] > summary { margin-bottom: 4px; }
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
@@ -294,7 +355,7 @@ main { padding: 8px 0 88px; }
 <a class="skip" id="skip" href="#main">ข้ามไปเนื้อหาหลัก</a>
 
 <div id="appView">
-  <div class="wrap">
+  <aside class="side">
     <header class="top">
       <div class="top-row">
         <h1>ติดตามผู้เรียน TIIS</h1>
@@ -304,16 +365,19 @@ main { padding: 8px 0 88px; }
         <button id="refreshBtn" class="btn" type="button">รีเฟรช</button>
       </div>
     </header>
-    <div id="banner" class="banner err" role="alert" hidden>
-      <span class="mark bad" aria-hidden="true">!</span>
-      <span class="msg"><strong>เกิดข้อผิดพลาด:</strong> <span id="bannerText"></span></span>
-      <button id="bannerRetry" class="btn small" type="button">ลองใหม่</button>
+    <nav class="nav" aria-label="เมนูหลัก"><ul id="navList"></ul></nav>
+  </aside>
+
+  <div class="content">
+    <div class="wrap">
+      <div id="banner" class="banner err" role="alert" hidden>
+        <span class="mark bad" aria-hidden="true">!</span>
+        <span class="msg"><strong>เกิดข้อผิดพลาด:</strong> <span id="bannerText"></span></span>
+        <button id="bannerRetry" class="btn small" type="button">ลองใหม่</button>
+      </div>
     </div>
-  </div>
 
-  <nav class="nav" aria-label="เมนูหลัก"><ul id="navList"></ul></nav>
-
-  <div class="wrap">
+    <div class="wrap">
     <main id="main" tabindex="-1" aria-busy="true">
       <div id="firstErr"></div>
 
@@ -349,17 +413,19 @@ main { padding: 8px 0 88px; }
       </section>
 
       <section class="panel" id="p-overview" aria-labelledby="h-overview" hidden>
-        <h2 id="h-overview" tabindex="-1">ภาพรวมรายสัปดาห์</h2>
-        <div class="weekbar">
-          <label for="weekSelect">ดูรายงานของสัปดาห์</label>
-          <div class="weekrow">
-            <select id="weekSelect"></select>
-            <span id="weekChip" class="chip slate" hidden></span>
+        <div class="ovhead">
+          <h2 id="h-overview" tabindex="-1">ภาพรวมรายสัปดาห์</h2>
+          <div class="weekbar">
+            <label for="weekSelect">ดูรายงานของสัปดาห์</label>
+            <div class="weekrow">
+              <select id="weekSelect"></select>
+              <span id="weekChip" class="chip slate" hidden></span>
+            </div>
+            <p id="weekLoading" class="small muted" hidden></p>
           </div>
-          <p id="weekLoading" class="small muted" hidden></p>
         </div>
-        <p id="regLine"></p>
-        <div id="ovBody" class="list"></div>
+        <p id="regLine" class="small muted"></p>
+        <div id="ovBody" class="dash"></div>
       </section>
 
       <section class="panel" id="p-settings" aria-labelledby="h-settings" hidden>
@@ -377,6 +443,7 @@ main { padding: 8px 0 88px; }
         <div id="taskList" class="list"></div>
       </section>
     </main>
+    </div>
   </div>
 
   <div id="live" class="sr" role="status" aria-live="polite"></div>
@@ -565,7 +632,7 @@ function applyAll(d, askedWeek) {
   updateTaskChips();
   const sig = sigNow();
   if (sig !== S.sig) { S.sig = sig; renderAll(); }
-  if (S.acc.trend && S.route === "overview") loadTrend(true);
+  if (S.route === "overview") loadTrend(true);
 }
 
 async function waitIdle() {
@@ -638,7 +705,7 @@ function showRoute(route, user) {
   }
   const item = NAV.find((n) => n.r === route);
   document.title = item.full + " - TIIS";
-  if (route === "overview" && S.acc.trend) loadTrend(false);
+  if (route === "overview") loadTrend(false);
   if (user) {
     window.scrollTo(0, 0);
     $("h-" + route).focus({ preventScroll: true });
@@ -747,13 +814,15 @@ function renderHome() {
       S.learners.length ? null : h("p", { class: "muted", text: "ยังไม่มีผู้เรียนลงทะเบียน" }),
       h("div", { class: "btns" },
         h("a", { class: "btn", href: "#/learners", "data-fk": "home-all-l", text: "ดูผู้เรียนทั้งหมด" }),
-        h("a", { class: "btn", href: "#/help", "data-fk": "home-all-h", text: "ดูเรื่องขอความช่วยเหลือ" }))));
+        h("a", { class: "btn", href: "#/help", "data-fk": "home-all-h", text: "ดูเรื่องขอความช่วยเหลือ" }))),
+      ...[homeSummary()].filter(Boolean));
     return;
   }
   box.replaceChildren(h("div", { class: "home-grid" },
     homeCard({ n: overdue, unit: "เรื่อง", title: "เกินกำหนดตอบ", desc: "รอเกิน 1 วันทำการ (ไม่นับวันหยุดนักขัตฤกษ์)", href: "#/help", tone: "urgent", fk: "home-1", pick: pickHelp("overdue") }),
     homeCard({ n: waiting, unit: "เรื่อง", title: "เรื่องรอทีมรับ", desc: "ยังไม่มีใครรับเรื่อง", href: "#/help", tone: "attn", fk: "home-2", pick: pickHelp("waiting") }),
-    homeCard({ n: high, unit: "คน", title: "ผู้เรียนที่ต้องตามด่วน", desc: "", extra: medium ? "ควรติดตามอีก " + medium + " คน" : "", href: "#/learners", tone: "urgent", fk: "home-3" })));
+    homeCard({ n: high, unit: "คน", title: "ผู้เรียนที่ต้องตามด่วน", desc: "", extra: medium ? "ควรติดตามอีก " + medium + " คน" : "", href: "#/learners", tone: "urgent", fk: "home-3" })),
+    ...[homeSummary()].filter(Boolean));
 }
 
 /* ============ learners ============ */
@@ -1133,8 +1202,6 @@ function chartA(r) {
   }
   const pct = pctText(rep, elig);
   const label = "รายงานแล้ว " + rep + " จาก " + elig + " คน คิดเป็น " + pct + " ยังไม่รายงาน " + notRep + " คน";
-  const conf = r.avg_confidence == null || !Number.isFinite(Number(r.avg_confidence))
-    ? "ความมั่นใจเฉลี่ย -" : "ความมั่นใจเฉลี่ย " + Number(r.avg_confidence) + " / 5 (จากผู้ที่รายงาน " + rep + " คน)";
   card.append(
     h("div", { class: "donutwrap" },
       donut(rep, elig, label, pct),
@@ -1143,10 +1210,7 @@ function chartA(r) {
       { kind: "ok", label: "รายงานแล้ว", n: rep, total: elig, unit: "คน" },
       { kind: "attn", label: "ยังไม่รายงาน", n: notRep, total: elig, unit: "คน" },
     ]),
-    h("p", { class: "small", text: conf }),
-    h("p", { class: "small", text: "ขอให้ทีมติดต่อ " + num(r.wants_contact) + " คน" }),
-    h("p", { class: "note", text: "ตัวเลขเปอร์เซ็นต์ปัดเศษ" }),
-    r.status === "open" ? h("p", { class: "note", text: "สัปดาห์นี้ยังเปิดรับรายงาน ตัวเลขจะเพิ่มขึ้นเรื่อย ๆ" }) : null);
+    h("p", { class: "note", text: "ตัวเลขเปอร์เซ็นต์ปัดเศษ" }));
   return { card, hasData: true };
 }
 function chartB(r) {
@@ -1272,25 +1336,16 @@ async function loadTrend(quiet) {
   S.trend = res.map((x, i) => ({ week: weeks[i], data: x.status === "fulfilled" ? x.value : null }));
   renderTrend();
 }
+function stext(attrs, text) { const n = s("text", attrs); n.textContent = text; return n; }
+
 function renderTrend() {
   const box = document.getElementById("trendBody");
   if (!box) return;
   if (!S.trend) { box.replaceChildren(h("p", { class: "muted", text: "กำลังโหลดข้อมูล..." })); return; }
   const ok = S.trend.filter((t) => t.data && num(t.data.eligible) > 0);
-  const maxE = Math.max(1, ...ok.map((t) => num(t.data.eligible)));
-  const n = S.trend.length, colW = 56, gap = 20;
-  const startX = (320 - (n * colW + (n - 1) * gap)) / 2;
+  const n = S.trend.length;
   const desc = "แนวโน้มจำนวนผู้รายงานสัปดาห์ 1 ถึง " + n + ": " + S.trend.map((t) => !t.data ? "สัปดาห์ " + t.week + " โหลดไม่ได้"
     : "สัปดาห์ " + t.week + " รายงาน " + num(t.data.reported) + " จาก " + num(t.data.eligible) + " คน").join(", ");
-  const svg = s("svg", { viewBox: "0 0 320 160", class: "chart-svg", role: "img", "aria-label": desc, preserveAspectRatio: "xMinYMid meet" },
-    s("line", { class: "baseline", x1: 0, y1: 140, x2: 320, y2: 140 }));
-  S.trend.forEach((t, i) => {
-    if (!t.data || !num(t.data.eligible)) return;
-    const el = num(t.data.eligible), rp = Math.min(num(t.data.reported), el);
-    const hr = (120 * rp) / maxE, hn = (120 * (el - rp)) / maxE, x = startX + i * (colW + gap);
-    if (hr > 0) svg.appendChild(segGroup("ok", x, 140 - hr, colW, hr, 3, t.data.status === "open"));
-    if (hn > 0) svg.appendChild(segGroup("attn", x, 140 - hr - hn, colW, hn, 3, t.data.status === "open"));
-  });
   const table = h("table", { class: "legend" },
     h("caption", { class: "sr", text: desc }),
     h("thead", null, h("tr", null, ["สัปดาห์", "รายงานแล้ว", "ยังไม่รายงาน", "ติดอยู่"].map((c) => h("th", { scope: "col", text: c })))),
@@ -1302,18 +1357,105 @@ function renderTrend() {
             h("td", null, num(d.progress && d.progress.stuck) > 0 ? chip(["ติดอยู่ " + num(d.progress.stuck), "urgent"]) : "0")];
       return h("tr", null, h("th", { scope: "row", text: "สัปดาห์ที่ " + t.week + (d && d.status === "open" ? " (ยังเปิดรับ)" : "") }), cells);
     })));
-  box.replaceChildren(h("div", { class: "legendline small" }, h("span", { class: "sw" }, swatch("ok"), " รายงานแล้ว  "), h("span", { class: "sw" }, swatch("attn"), " ยังไม่รายงาน")), svg, table);
+  const details = h("details", { class: "tbl" }, h("summary", { text: "ดูตัวเลขเป็นตาราง" }), table);
+  if (!ok.length) {
+    box.replaceChildren(h("p", { class: "strong", text: "ยังไม่มีข้อมูลผู้เรียนที่ต้องรายงานในสัปดาห์ที่ผ่านมา" }), details);
+    return;
+  }
+  const W = 520, top = 34, base = 154, padL = 36, plotH = base - top;
+  const maxE = Math.max(1, ...ok.map((t) => num(t.data.eligible)));
+  const step = (W - padL) / n, colW = Math.min(76, step - 28);
+  const yOf = (v) => base - (plotH * v) / maxE;
+  const svg = s("svg", { viewBox: "0 0 " + W + " 196", class: "chart-svg wide", role: "img", "aria-label": desc, preserveAspectRatio: "xMinYMid meet" },
+    s("line", { class: "gridline", x1: padL, y1: yOf(maxE), x2: W, y2: yOf(maxE) }),
+    stext({ class: "ylabel", x: padL - 6, y: yOf(maxE) + 4, "text-anchor": "end" }, String(maxE)),
+    stext({ class: "ylabel", x: padL - 6, y: base + 4, "text-anchor": "end" }, "0"),
+    s("line", { class: "baseline", x1: padL, y1: base, x2: W, y2: base }));
+  S.trend.forEach((t, i) => {
+    const x = padL + i * step + (step - colW) / 2;
+    svg.appendChild(stext({ class: "xlabel", x: x + colW / 2, y: base + 22, "text-anchor": "middle" }, "สัปดาห์ " + t.week));
+    if (!t.data || !num(t.data.eligible)) return;
+    const el = num(t.data.eligible), rp = Math.min(num(t.data.reported), el);
+    const hr = (plotH * rp) / maxE, hn = (plotH * (el - rp)) / maxE, open = t.data.status === "open";
+    if (hr > 0) svg.appendChild(segGroup("ok", x, base - hr, colW, hr, 3, open));
+    if (hn > 0) svg.appendChild(segGroup("attn", x, base - hr - hn, colW, hn, 3, open));
+    svg.appendChild(stext({ class: "vlabel", x: x + colW / 2, y: base - hr - hn - 8, "text-anchor": "middle" }, rp + "/" + el));
+  });
+  box.replaceChildren(
+    h("div", { class: "legendline small" }, h("span", { class: "sw" }, swatch("ok"), " รายงานแล้ว  "), h("span", { class: "sw" }, swatch("attn"), " ยังไม่รายงาน"),
+      S.trend.some((t) => t.data && t.data.status === "open") ? h("span", { class: "muted", text: "(ลายเส้นประ = สัปดาห์ที่ยังเปิดรับ)" }) : null),
+    svg, details);
 }
 
 function stateCard(r) {
   if (r.status === "followup") {
-    return h("div", { class: "chartcard" },
+    return h("div", { class: "chartcard span-all" },
       h("h3", { text: "สัปดาห์ที่ " + r.week + " เป็นช่วงติดตามผล" }),
-      h("p", { text: "ช่วงนี้ไม่มีรายงานรายสัปดาห์ ให้ดูผลติดตามหลังกิจกรรมหลักด้านล่าง" }),
-      h("button", { class: "btn", type: "button", "data-fk": "go-fu", text: "ไปที่ผลติดตาม",
-        events: { click: () => { S.acc.fu = true; renderOverview(); focusKey("acc-fu", true); } } }));
+      h("p", { text: "ช่วงนี้ไม่มีรายงานรายสัปดาห์ ผลติดตามหลังกิจกรรมหลักอยู่ด้านล่าง" }));
   }
-  return h("div", { class: "chartcard" }, h("h3", { text: "สัปดาห์ที่ " + r.week + " ยังไม่เริ่ม" }), h("p", { text: "ยังไม่มีรายงานให้ดู" }));
+  return h("div", { class: "chartcard span-all" }, h("h3", { text: "สัปดาห์ที่ " + r.week + " ยังไม่เริ่ม" }), h("p", { text: "ยังไม่มีรายงานให้ดู" }));
+}
+
+/* ---- KPI tiles: the few numbers to read first ---- */
+function meterBar(n, total, label) {
+  const w = total > 0 ? Math.min(100, (100 * n) / total) : 0;
+  return s("svg", { class: "meter", viewBox: "0 0 100 6", role: "img", "aria-label": label, preserveAspectRatio: "none" },
+    s("rect", { class: "track", x: 0, y: 0, width: 100, height: 6, rx: 3 }),
+    w > 0 ? s("rect", { class: "fillbar", x: 0, y: 0, width: Math.max(w, 3), height: 6, rx: 3 }) : null);
+}
+function kpi(label, value, sub, tone, meter) {
+  return h("div", { class: "kpi" + (tone ? " tone-" + tone : "") },
+    h("p", { class: "k-label", text: label }), h("p", { class: "k-val", text: String(value) }), meter || null,
+    sub ? h("p", { class: "k-sub", text: sub }) : null);
+}
+function followAnswered(r) {
+  const f = r.followups || {};
+  const asked = ["fu_mid", "fu_final"].reduce((a, k) => a + num(f[k] && f[k].asked), 0);
+  const got = ["fu_mid", "fu_final"].reduce((a, k) => a + num(f[k] && f[k].answered), 0);
+  return { asked, got };
+}
+
+/* KPI tiles for one report: the few numbers to read first (used by the home summary and the overview) */
+function kpiTiles(r) {
+  const isFollow = r.status === "followup", isFuture = r.status === "future";
+  const hs = r.help || {}, by = hs.by_status || {};
+  const elig = num(r.eligible), rep = num(r.reported), notRep = Math.max(elig - rep, 0), od = num(hs.overdue);
+  const odTile = kpi("เกินกำหนดตอบ", od + " เรื่อง", "รอเกิน 1 วันทำการ", od > 0 ? "urgent" : null);
+
+  let tiles;
+  if (isFollow || isFuture) {
+    const fa = followAnswered(r);
+    tiles = [kpi("เรื่องรอทีมรับ", num(by.waiting) + " เรื่อง", "ยังไม่มีใครรับเรื่อง", num(by.waiting) > 0 ? "attn" : null), odTile,
+      kpi("ตอบติดตามผลแล้ว", fa.asked ? fa.got + " จาก " + fa.asked + " คน" : "-", fa.asked ? "ถามแล้ว " + fa.asked + " คน" : "ยังไม่ได้ถามผู้เรียน")];
+  } else {
+    const pct = pctText(rep, elig);
+    const avg = r.avg_confidence == null || !Number.isFinite(Number(r.avg_confidence)) ? "-" : Number(r.avg_confidence) + " / 5";
+    tiles = [
+      kpi("รายงานแล้ว", elig ? pct : "-", elig ? "รายงานแล้ว " + rep + " จาก " + elig + " คน" : "ยังไม่มีผู้เรียนที่ต้องรายงาน", null,
+        elig ? meterBar(rep, elig, "รายงานแล้ว " + rep + " จาก " + elig + " คน คิดเป็น " + pct) : null),
+      kpi("ยังไม่ได้รายงาน", notRep + " คน", r.status === "open" ? "สัปดาห์นี้ยังเปิดรับรายงาน" : "ปิดรับรายงานแล้ว", r.status === "closed" && notRep > 0 ? "attn" : null),
+      kpi("ความมั่นใจเฉลี่ย", avg, rep ? "จากผู้ที่รายงาน " + rep + " คน" : "ยังไม่มีผู้รายงาน"),
+      kpi("ขอให้ทีมติดต่อ", num(r.wants_contact) + " คน", "เลือก 'ได้เลย' ตอนรายงาน"),
+      odTile];
+  }
+  return tiles;
+}
+
+/* home: this week's picture under the three action cards */
+function homeSummary() {
+  const r = S.report;
+  if (!r || r.status === "future") return null;
+  const grid = h("div", { class: "dgrid" });
+  if (r.status === "followup") grid.append(helpChart(r));
+  else {
+    const a = chartA(r);
+    grid.append(a.card);
+    if (a.hasData) grid.append(chartB(r));
+    grid.append(helpChart(r));
+  }
+  return h("section", { class: "dash", "aria-labelledby": "h-home-sum" },
+    h("h3", { id: "h-home-sum", class: "groupHead", text: "สรุปสัปดาห์ที่ " + r.week }),
+    h("div", { class: "kpis" }, kpiTiles(r)), grid);
 }
 
 function renderOverview() {
@@ -1321,32 +1463,27 @@ function renderOverview() {
   if (!S.loaded || !S.report) { const l = loadingBox(); if (l) box.replaceChildren(l); else clear(box); return; }
   const r = S.report, dup = dupNames();
   renderWeekControls(r);
-  const desktop = window.matchMedia("(min-width: 900px)").matches;
   const isFollow = r.status === "followup", isFuture = r.status === "future";
   const hs = r.help || {}, by = hs.by_status || {};
-  const nodes = [];
+  const elig = num(r.eligible), rep = num(r.reported), notRep = Math.max(elig - rep, 0), od = num(hs.overdue);
+  const tiles = kpiTiles(r);
 
-  const fuSec = accordion({ key: "fu", title: "ผลติดตามหลังกิจกรรมหลัก", summary: followSummary(r), defOpen: isFollow || desktop,
-    body: h("div", { class: "cg two" }, followCard("fu_mid", (r.followups || {}).fu_mid), followCard("fu_final", (r.followups || {}).fu_final)) });
-  const helpSec = accordion({ key: "help", title: "เรื่องขอความช่วยเหลือ (รวมทุกสัปดาห์)",
-    summary: "รอรับ " + num(by.waiting) + " · เกินกำหนด " + num(hs.overdue), defOpen: desktop, body: helpChart(r) });
-
-  if (isFollow) nodes.push(stateCard(r), fuSec.root, helpSec.root);
-  else if (isFuture) nodes.push(stateCard(r), helpSec.root, fuSec.root);
-  else {
+  const grid = h("div", { class: "dgrid" });
+  const fuNode = h("div", { class: "span2" }, h("div", { class: "cg two" },
+    followCard("fu_mid", (r.followups || {}).fu_mid), followCard("fu_final", (r.followups || {}).fu_final)));
+  const trendCard = h("div", { class: "chartcard span2" }, h("h3", { text: "แนวโน้มผู้รายงานรายสัปดาห์" }),
+    h("p", { class: "note", text: "นับจากสัปดาห์ที่ 1 ถึงสัปดาห์ปัจจุบัน (ไม่เกินสัปดาห์ที่ 4)" }), h("div", { id: "trendBody" }));
+  const rows = Array.isArray(r.not_reported) ? r.not_reported : [];
+  if (isFollow || isFuture) {
+    grid.append(stateCard(r), fuNode, helpChart(r), trendCard);
+  } else {
     const a = chartA(r);
-    const repBody = a.hasData ? h("div", { class: "cg two" }, a.card, chartB(r), chartC(r)) : h("div", { class: "cg" }, a.card);
-    const cur = r.week === r.current_week;
-    const rows = Array.isArray(r.not_reported) ? r.not_reported : [];
-    nodes.push(
-      accordion({ key: "rep", title: cur ? "สัปดาห์นี้ใครรายงานแล้ว" : "สัปดาห์ที่ " + r.week + " ใครรายงานแล้ว",
-        summary: num(r.eligible) ? "รายงานแล้ว " + num(r.reported) + " จาก " + num(r.eligible) + " คน" : "", defOpen: true, body: repBody }).root,
-      accordion({ key: "nr", title: "ยังไม่ได้รายงาน (" + rows.length + " คน)", defOpen: true, body: notReportedBody(r, dup) }).root,
-      helpSec.root, fuSec.root);
+    grid.append(a.card);
+    if (a.hasData) grid.append(chartB(r), chartC(r));
+    grid.append(trendCard, helpChart(r), fuNode,
+      h("div", { class: "chartcard" }, h("h3", { text: "ยังไม่ได้รายงาน (" + rows.length + " คน)" }), notReportedBody(r, dup)));
   }
-  nodes.push(accordion({ key: "trend", title: "แนวโน้ม 4 สัปดาห์", defOpen: false,
-    body: h("div", { id: "trendBody" }), toggled: (open) => { if (open) loadTrend(false); } }).root);
-  keepView(() => box.replaceChildren(...nodes));
+  keepView(() => box.replaceChildren(h("div", { class: "kpis" }, tiles), grid));
   renderTrend();
 }
 
