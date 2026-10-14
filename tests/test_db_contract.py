@@ -335,3 +335,19 @@ def test_postgres_refuses_unknown_user_and_unknown_fields_instead_of_silently_dr
         any_db.update_user("U1", state="idle")
     with pytest.raises(ValueError):
         any_db.update_help(1, detail="x")
+
+
+def test_settings_store_a_value_overwrite_it_and_report_missing_keys(any_db):
+    assert any_db.get_setting("project_start") is None
+    any_db.set_setting("project_start", "2026-11-02")
+    assert any_db.get_setting("project_start") == "2026-11-02"
+    any_db.set_setting("project_start", "2026-11-09")
+    any_db.set_setting("other", "x")
+    assert any_db.get_setting("project_start") == "2026-11-09" and any_db.get_setting("other") == "x"
+
+
+def test_has_checkins_flips_on_the_first_report(any_db):
+    add_user(any_db)
+    assert any_db.has_checkins() is False
+    any_db.upsert_checkin("U1", 1, "doing", 3, None, False, "งาน")
+    assert any_db.has_checkins() is True

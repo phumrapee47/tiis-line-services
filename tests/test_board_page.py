@@ -122,7 +122,7 @@ def test_every_server_call_goes_to_api_and_sends_no_credentials():
     methods = set(re.findall(r"method:\s*\"(\w+)\"", JS))
     assert methods == {"POST", "PUT"}, methods
     endpoints = {re.match(r"/api/\w+", p.strip("\"'")).group(0) for p in paths}
-    assert endpoints == {"/api/triage", "/api/help", "/api/tasks", "/api/report"}, endpoints
+    assert endpoints == {"/api/triage", "/api/help", "/api/tasks", "/api/report", "/api/settings"}, endpoints
 
 
 def test_page_does_not_leak_user_text_into_attributes_that_execute_or_navigate():
@@ -700,11 +700,12 @@ def test_every_snake_case_name_in_the_page_exists_in_real_api_payloads(app_clien
     names = set()
     for day in (1, 30):
         set_day(clock, monkeypatch, day)
-        for path in ["/api/triage", "/api/help", "/api/tasks"] + [f"/api/report?week={w}" for w in range(1, 7)]:
+        for path in ["/api/triage", "/api/help", "/api/tasks", "/api/settings"] + [f"/api/report?week={w}" for w in range(1, 7)]:
             _collect(app_client.get(path).get_json(), names)
     names |= {"learners", "requests", "tasks", "current_week"}
     names |= set(messages.BLOCKERS)                      # blocker keys the fixtures do not happen to contain
     names |= {"title_required", "title_too_long", "description_too_long"}      # PUT /api/tasks error codes (own test below)
+    names |= {"confirm_shift", "reports_exist"}      # PUT /api/settings: the request flag and the 409 code (own tests in test_start_date.py)
     js_names = set(re.findall(r"\b[a-z]+(?:_[a-z]+)+\b", JS))
     ignorable = set()      # none expected: everything snake_case in the page should be an API name
     missing = sorted(js_names - names - ignorable)

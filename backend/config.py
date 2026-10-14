@@ -22,17 +22,15 @@ DB_PATH = os.environ.get("DB_PATH", "data.db")
 # Postgres/Supabase connection string (use the Session pooler URI on Render). Empty = SQLite at DB_PATH.
 DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
-# Day 1 of the 6-week pilot (assumed, not given in the brief).
+# Day 1 of the 6-week pilot. This is only the default: the team sets the real date on the board (Settings tab), it is
+# stored in the database and loaded at start-up with set_project_start(). Until then the schedule uses this value.
 PROJECT_START = date.fromisoformat(os.environ.get("PROJECT_START", "2026-10-19"))
 PROJECT_DAYS = 42            # 6 weeks
 MAIN_ACTIVITY_DAYS = 28      # weeks 1-4: main learning activity
 FOLLOWUP_MIN_DAYS = 14       # brief: follow up >= 14 days after the main activity
-
-MAIN_ACTIVITY_END = PROJECT_START + timedelta(days=MAIN_ACTIVITY_DAYS - 1)
-PROJECT_END = PROJECT_START + timedelta(days=PROJECT_DAYS - 1)
-assert MAIN_ACTIVITY_END + timedelta(days=FOLLOWUP_MIN_DAYS) <= PROJECT_END, (
-    "follow-up window must fit inside the project"
-)
+assert MAIN_ACTIVITY_DAYS + FOLLOWUP_MIN_DAYS <= PROJECT_DAYS, "follow-up window must fit inside the project"
+START_SETTING = "project_start"            # key in the settings table
+MIN_START, MAX_START = date(2020, 1, 1), date(2100, 12, 31)
 
 # Promised reply time shown to learners (assumption, not a measured SLA).
 SLA_TEXT = "ภายใน 1 วันทำการ"
@@ -44,6 +42,43 @@ DEMO_TODAY = os.environ.get("DEMO_TODAY", "")
 
 
 THAI_TZ = timezone(timedelta(hours=7))
+
+
+def set_project_start(d: date) -> None:
+    global PROJECT_START
+    PROJECT_START = d
+
+
+def main_activity_end(start=None) -> date:
+    return (start or PROJECT_START) + timedelta(days=MAIN_ACTIVITY_DAYS - 1)
+
+
+def project_end(start=None) -> date:
+    return (start or PROJECT_START) + timedelta(days=PROJECT_DAYS - 1)
+
+
+def followup_dates(start=None) -> dict:
+    """The two follow-up questions: halfway and at the 14-day mark after the main activity ends."""
+    end = main_activity_end(start)
+    return {"fu_mid": end + timedelta(days=FOLLOWUP_MIN_DAYS // 2), "fu_final": end + timedelta(days=FOLLOWUP_MIN_DAYS)}
+
+
+def project_state(d: date, start=None) -> str:
+    """not_started / main (weeks 1-4) / followup (weeks 5-6) / ended."""
+    s = start or PROJECT_START
+    if d < s:
+        return "not_started"
+    if d <= main_activity_end(s):
+        return "main"
+    return "followup" if d <= project_end(s) else "ended"
+
+
+def __getattr__(name):  # the old constants keep working but follow the current start date
+    if name == "MAIN_ACTIVITY_END":
+        return main_activity_end()
+    if name == "PROJECT_END":
+        return project_end()
+    raise AttributeError(name)
 
 
 def restricted_instance() -> bool:

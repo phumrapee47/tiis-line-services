@@ -8,6 +8,11 @@ pip install -r requirements-dev.txt
 python -m pytest -q          # ~320 tests (SQLite); add TEST_DATABASE_URL to also run the DB contract tests on Postgres
 python -m backend.app        # http://127.0.0.1:5000  (SQLite file: data.db)
 ```
+See the board with made-up learners (a new local SQLite file, never Postgres or LINE):
+```bash
+python scripts/seed_demo.py demo.db
+DB_PATH=demo.db python -m backend.app      # open http://127.0.0.1:5000/board
+```
 Try it without LINE:
 ```bash
 curl -X POST localhost:5000/api/sim/event -H "Content-Type: application/json" \
@@ -27,7 +32,7 @@ The rich menu's four buttons send these exact texts: `รายงานคว�
   `backend/pg.py`) and `tests/test_db_contract.py` checks they behave the same.
 
 ## Config (env)
-`PROJECT_START` (default 2026-10-19, an assumption), `DB_PATH`, `DATABASE_URL`, `TEST_DATABASE_URL` (tests only, schema `tiis_test`), `DEMO_TODAY` (pretend today is a date).
+`PROJECT_START` (only the default start date, 2026-10-19: the team sets the real one on the board, Settings tab, and it is stored in the database), `DB_PATH`, `DATABASE_URL`, `TEST_DATABASE_URL` (tests only, schema `tiis_test`), `DEMO_TODAY` (pretend today is a date).
 
 ## Known limits
 - Triage weights are starting assumptions, untested with real learners.

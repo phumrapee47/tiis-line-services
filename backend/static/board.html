@@ -346,6 +346,16 @@ main { padding: 8px 0 88px; }
 details.tbl > summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; font-weight: 600; color: var(--info); }
 details.tbl[open] > summary { margin-bottom: 4px; }
 
+/* project start: status strip and the editor in Settings */
+.pstrip { display: grid; gap: 4px; border: 1px solid var(--info); background: var(--info-bg); border-radius: 12px; padding: 12px 16px; }
+.pstrip.tone-attn { border-color: var(--attn); background: var(--attn-bg); }
+.pstrip .strong { font-weight: 700; }
+.startbox { display: grid; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: var(--shadow); }
+.startbox .rowfields { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.startbox .field { flex: 1 1 220px; max-width: 320px; }
+.startbox input[type="date"] { min-height: 48px; }
+.startbox .warnline { display: flex; gap: 8px; align-items: flex-start; color: var(--attn); font-weight: 600; }
+
 @media (prefers-reduced-motion: reduce) {
   * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
 }
@@ -430,6 +440,7 @@ details.tbl[open] > summary { margin-bottom: 4px; }
 
       <section class="panel" id="p-settings" aria-labelledby="h-settings" hidden>
         <h2 id="h-settings" tabindex="-1">ตั้งค่างานและส่งออก</h2>
+        <section id="startBox" class="startbox" aria-labelledby="h-start"></section>
         <div class="formgrid">
           <h3>ดาวน์โหลดข้อมูล</h3>
           <p class="small muted">ไฟล์ CSV เปิดได้ด้วย Excel หรือ Google Sheets</p>
@@ -518,7 +529,7 @@ function freshState() {
     learners: [], helps: [], tasks: [], currentWeek: 1, report: null, reportWeek: null, weekLoading: false,
     lrnQuery: "", lrnHideNormal: true, lrnShown: PAGE,
     helpFilter: "open", helpShown: PAGE, expanded: new Set(), confirming: null, busy: new Map(), cardErr: {},
-    nrShown: PAGE, acc: {}, taskBuilt: false, taskChips: {}, trend: null, trendLoading: false,
+    nrShown: PAGE, acc: {}, settings: null, startBuilt: false, taskBuilt: false, taskChips: {}, trend: null, trendLoading: false,
     route: "home",
   };
 }
@@ -613,15 +624,17 @@ function fetchAll(week) {
   return Promise.all([
     api("/api/triage"), api("/api/help"), api("/api/tasks"),
     api("/api/report" + (week ? "?week=" + encodeURIComponent(week) : "")),
+    api("/api/settings"),
   ]);
 }
-function sigNow() { return JSON.stringify([S.learners, S.helps, S.currentWeek, S.report]); }
+function sigNow() { return JSON.stringify([S.learners, S.helps, S.currentWeek, S.report, S.settings]); }
 
 function applyAll(d, askedWeek) {
   S.learners = Array.isArray(d[0].learners) ? d[0].learners : [];
   S.helps = Array.isArray(d[1].requests) ? d[1].requests : [];
   S.tasks = Array.isArray(d[2].tasks) ? d[2].tasks : [];
   S.currentWeek = num(d[2].current_week) || 1;
+  S.settings = d[4] && typeof d[4] === "object" ? d[4] : null;
   if (askedWeek === S.reportWeek) S.report = d[3]; // a week picked meanwhile must not be overwritten
   if (S.reportWeek && S.report && S.reportWeek > num(S.report.current_week)) S.reportWeek = null;
   S.loaded = true; S.firstError = ""; S.updatedAt = new Date();
@@ -630,6 +643,8 @@ function applyAll(d, askedWeek) {
   setText($("updated"), updatedLabel());
   ensureTaskEditor();
   updateTaskChips();
+  ensureStartEditor();
+  updateStartInfo();
   const sig = sigNow();
   if (sig !== S.sig) { S.sig = sig; renderAll(); }
   if (S.route === "overview") loadTrend(true);
@@ -816,6 +831,7 @@ function renderHome() {
         h("a", { class: "btn", href: "#/learners", "data-fk": "home-all-l", text: "ดูผู้เรียนทั้งหมด" }),
         h("a", { class: "btn", href: "#/help", "data-fk": "home-all-h", text: "ดูเรื่องขอความช่วยเหลือ" }))),
       ...[homeSummary()].filter(Boolean));
+    if (projectStrip()) box.prepend(projectStrip());
     return;
   }
   box.replaceChildren(h("div", { class: "home-grid" },
@@ -823,6 +839,7 @@ function renderHome() {
     homeCard({ n: waiting, unit: "เรื่อง", title: "เรื่องรอทีมรับ", desc: "ยังไม่มีใครรับเรื่อง", href: "#/help", tone: "attn", fk: "home-2", pick: pickHelp("waiting") }),
     homeCard({ n: high, unit: "คน", title: "ผู้เรียนที่ต้องตามด่วน", desc: "", extra: medium ? "ควรติดตามอีก " + medium + " คน" : "", href: "#/learners", tone: "urgent", fk: "home-3" })),
     ...[homeSummary()].filter(Boolean));
+  if (projectStrip()) box.prepend(projectStrip());
 }
 
 /* ============ learners ============ */
@@ -1483,7 +1500,7 @@ function renderOverview() {
     grid.append(trendCard, helpChart(r), fuNode,
       h("div", { class: "chartcard" }, h("h3", { text: "ยังไม่ได้รายงาน (" + rows.length + " คน)" }), notReportedBody(r, dup)));
   }
-  keepView(() => box.replaceChildren(h("div", { class: "kpis" }, tiles), grid));
+  keepView(() => box.replaceChildren(...[projectStrip(), h("div", { class: "kpis" }, tiles), grid].filter(Boolean)));
   renderTrend();
 }
 
@@ -1603,6 +1620,148 @@ function ensureTaskEditor() {
 }
 function updateTaskChips() {
   Object.keys(S.taskChips).forEach((w) => { S.taskChips[w].hidden = Number(w) !== S.currentWeek; });
+}
+
+/* ============ project start date ============ */
+function thaiDate(iso) {
+  const d = new Date(String(iso) + "T00:00:00Z");
+  return Number.isNaN(d.getTime()) ? "-" : d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+function addDays(iso, n) {
+  const d = new Date(String(iso) + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) return "";
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function startStatusText(st) {
+  const start = thaiDate(st.project_start);
+  if (st.state === "not_started") {
+    return "โครงการยังไม่เริ่ม: เริ่มวันที่ " + start + " (อีก " + num(st.days_until_start) + " วัน) ก่อนถึงวันนั้นผู้เรียนยังทดลองรายงานได้ และข้อมูลจะนับเป็นสัปดาห์ที่ 1";
+  }
+  if (st.state === "main") {
+    return "โครงการเริ่มวันที่ " + start + " · วันนี้เป็นวันที่ " + num(st.day_no) + " (สัปดาห์ที่ " + num(st.week) + " จาก 6) · กิจกรรมหลักถึงวันที่ " + thaiDate(st.schedule && st.schedule.main_end);
+  }
+  if (st.state === "followup") {
+    return "ช่วงติดตามผล (สัปดาห์ที่ " + num(st.week) + " จาก 6) · โครงการจบวันที่ " + thaiDate(st.schedule && st.schedule.project_end);
+  }
+  return "โครงการจบแล้วเมื่อวันที่ " + thaiDate(st.schedule && st.schedule.project_end);
+}
+/* one line at the top of Home and Overview: where the project is today */
+function projectStrip() {
+  const st = S.settings;
+  if (!st || !st.project_start) return null;
+  const unset = st.start_is_set === false;
+  return h("div", { class: "pstrip" + (st.state === "not_started" || unset ? " tone-attn" : ""), role: "status" },
+    h("p", { class: "strong", text: startStatusText(st) }),
+    unset ? h("p", { class: "small", text: "ยังไม่ได้ตั้งวันเริ่มโครงการ ตอนนี้ใช้วันที่เริ่มต้นของระบบ" }) : null,
+    unset ? h("a", { class: "btn small", href: "#/settings", "data-fk": "set-start", text: "ตั้งวันเริ่มโครงการ" }) : null);
+}
+/* the schedule that follows from a start date (shown as a preview while typing, and for the saved date) */
+function scheduleRows(startIso, st) {
+  const mainDays = num(st && st.schedule && st.schedule.main_days) || 28, projDays = num(st && st.schedule && st.schedule.project_days) || 42;
+  const mainEnd = addDays(startIso, mainDays - 1), end = addDays(startIso, projDays - 1);
+  return [
+    ["กิจกรรมหลัก (สัปดาห์ที่ 1-4)", thaiDate(startIso) + " ถึง " + thaiDate(mainEnd)],
+    ["ช่วงติดตามผล (สัปดาห์ที่ 5-6)", thaiDate(addDays(mainEnd, 1)) + " ถึง " + thaiDate(end)],
+    ["ถามติดตามผลครั้งที่ 1", thaiDate(addDays(mainEnd, 7))],
+    ["ถามติดตามผลครั้งที่ 2 (14 วันหลังกิจกรรมหลักจบ)", thaiDate(addDays(mainEnd, 14))],
+    ["จบโครงการ", thaiDate(end)],
+  ];
+}
+const START_ERR = {
+  generic: "บันทึกไม่สำเร็จ: ลองใหม่อีกครั้ง",
+  empty: "กรุณาเลือกวันที่",
+  invalid: "บันทึกไม่สำเร็จ: วันที่ไม่ถูกต้องหรืออยู่นอกช่วงที่รับได้ (ปี 2020 ถึง 2100)",
+};
+const startRefs = {};
+function ensureStartEditor() {
+  if (S.startBuilt || !S.settings) return;
+  S.startBuilt = true;
+  const box = $("startBox");
+  const input = h("input", { id: "startDate", type: "date", min: "2020-01-01", max: "2100-12-31", value: S.settings.project_start });
+  const save = h("button", { class: "btn primary", type: "button", text: "บันทึกวันเริ่มโครงการ", "data-fk": "start-save" });
+  const status = h("div", { class: "status", role: "status" });
+  const now = h("p", { class: "strong", id: "startNow" });
+  const unset = h("p", { class: "warnline", id: "startUnset", hidden: true });
+  const sched = h("div", { id: "startSched" });
+  const confirm = h("div", { class: "confirm", id: "startConfirm", role: "alertdialog", "aria-labelledby": "startConfirmT", hidden: true });
+  Object.assign(startRefs, { input, save, status, now, unset, sched, confirm, dirty: false, saving: false });
+
+  const drawSched = (iso) => {
+    sched.replaceChildren(h("table", { class: "legend" },
+      h("caption", { class: "sr", text: "ตารางเวลาของโครงการเมื่อเริ่มวันที่ " + thaiDate(iso) }),
+      h("tbody", null, scheduleRows(iso, S.settings).map((r) => h("tr", null, h("th", { scope: "row", text: r[0] }), h("td", { text: r[1] }))))));
+  };
+  startRefs.drawSched = drawSched;
+  drawSched(S.settings.project_start);
+
+  input.addEventListener("input", () => {
+    startRefs.dirty = true;
+    confirm.hidden = true;
+    if (input.value) {
+      drawSched(input.value);
+      setStatus(status, "", "ยังไม่ได้บันทึก"); status.classList.add("muted");
+    }
+  });
+  async function doSave(confirmShift) {
+    if (startRefs.saving) return;
+    if (!input.value) { setStatus(status, "bad", START_ERR.empty); input.focus(); return; }
+    startRefs.saving = true; save.disabled = true; save.textContent = "กำลังบันทึก...";
+    setStatus(status, "", "กำลังบันทึก...");
+    try {
+      const body = { project_start: input.value };
+      if (confirmShift) body.confirm_shift = true;
+      const r = await api("/api/settings", { method: "PUT", body: JSON.stringify(body) });
+      S.settings = r; startRefs.dirty = false; confirm.hidden = true;
+      S.trend = null; S.sig = "";
+      setStatus(status, "good", "บันทึกแล้ว: โครงการเริ่มวันที่ " + thaiDate(r.project_start));
+      announce("บันทึกวันเริ่มโครงการแล้ว");
+      updateStartInfo();
+      loadAll("manual");
+    } catch (e) {
+      if (e.code === "reports_exist") {
+        setStatus(status, "", "");
+        showStartConfirm();
+      } else {
+        setStatus(status, "bad", e.status === 400 ? START_ERR.invalid : START_ERR.generic);
+      }
+    } finally {
+      startRefs.saving = false; save.disabled = false; save.textContent = "บันทึกวันเริ่มโครงการ";
+    }
+  }
+  function showStartConfirm() {
+    confirm.replaceChildren(
+      h("h4", { id: "startConfirmT", text: "มีผู้เรียนรายงานแล้ว เปลี่ยนวันเริ่มต่อไหม" }),
+      h("p", { text: "การเลื่อนวันเริ่มจะทำให้สัปดาห์ของรายงานที่ส่งไปแล้วเปลี่ยนความหมาย (รายงานที่เคยเป็นสัปดาห์ที่ 1 ยังคงถูกนับเป็นสัปดาห์ที่ 1 แต่ตรงกับช่วงวันที่ใหม่) ควรเปลี่ยนเฉพาะตอนที่ตั้งผิด" }),
+      h("div", { class: "actions" },
+        h("button", { class: "btn", type: "button", "data-fk": "start-cancel", text: "ไม่เปลี่ยน",
+          events: { click: () => { input.value = S.settings.project_start; startRefs.dirty = false; drawSched(input.value); confirm.hidden = true; setStatus(status, "", ""); input.focus(); } } }),
+        h("button", { class: "btn danger-solid", type: "button", "data-fk": "start-confirm", text: "เปลี่ยนวันเริ่ม", events: { click: () => doSave(true) } })));
+    confirm.hidden = false;
+    confirm.querySelector("button").focus();
+  }
+  save.addEventListener("click", () => doSave(false));
+
+  box.replaceChildren(
+    h("h3", { id: "h-start", text: "วันเริ่มโครงการ" }),
+    h("p", { class: "small muted", text: "ตั้งวันแรกของโครงการ 6 สัปดาห์ ระบบจะคำนวณสัปดาห์ที่ 1-6 ข้อความเริ่มสัปดาห์ และวันถามติดตามผลจากวันนี้" }),
+    now, unset,
+    h("div", { class: "rowfields" }, h("div", { class: "field" }, h("label", { for: "startDate", text: "วันเริ่มโครงการ" }), input), save),
+    status, confirm,
+    h("h4", { text: "ตารางเวลาที่ได้" }), sched);
+}
+/* refresh: update the texts, never the date the user is typing */
+function updateStartInfo() {
+  const st = S.settings;
+  if (!S.startBuilt || !st) return;
+  setText(startRefs.now, startStatusText(st));
+  const unset = st.start_is_set === false;
+  startRefs.unset.hidden = !unset;
+  if (unset) setText(startRefs.unset, "ยังไม่ได้ตั้งวันเริ่มโครงการ ตอนนี้ระบบใช้วันที่เริ่มต้น " + thaiDate(st.project_start) + " กดบันทึกเพื่อยืนยันวันที่ที่ต้องการ");
+  if (!startRefs.dirty && document.activeElement !== startRefs.input && startRefs.input.value !== st.project_start) {
+    startRefs.input.value = st.project_start;
+    startRefs.drawSched(st.project_start);
+  }
 }
 
 /* ============ render everything from state ============ */

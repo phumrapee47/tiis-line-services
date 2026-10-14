@@ -29,6 +29,9 @@ CREATE TABLE IF NOT EXISTS weekly_tasks (
     week INTEGER PRIMARY KEY CHECK (week BETWEEN 1 AND 4),
     title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS settings (
+    key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS events (event_id TEXT PRIMARY KEY, received_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS outbox (
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL,
@@ -142,6 +145,19 @@ class Database:
                  task_title=excluded.task_title,
                  updated_at=excluded.updated_at""",
             (user_id, week, progress, confidence, blocker, int(wants_contact), task_title, now, now))
+
+    # team-set values (the project start date)
+    def get_setting(self, key):
+        rows = self._q("SELECT value FROM settings WHERE key=?", (key,))
+        return rows[0]["value"] if rows else None
+
+    def set_setting(self, key, value):
+        self._x("""INSERT INTO settings (key, value, updated_at) VALUES (?,?,?)
+                   ON CONFLICT(key) DO UPDATE SET value=excluded.value, updated_at=excluded.updated_at""",
+                (key, str(value), _now()))
+
+    def has_checkins(self):
+        return bool(self._q("SELECT 1 FROM checkins LIMIT 1"))
 
     # weekly tasks (set by the team)
     def get_task(self, week):

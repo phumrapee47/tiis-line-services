@@ -28,7 +28,7 @@ _HELP = """SELECT h.id, u.line_user_id AS user_id, h.category::text AS category,
 _USER_FIELDS = {"nickname": "%s", "goal": "%s", "display_name": "%s", "consented_at": "%s::timestamptz",
                 "blocked_at": "%s::timestamptz"}
 _HELP_FIELDS = {"status": "%s::help_status_t", "created_at": "%s::timestamptz"}
-_TABLES = ("outbox", "pushes_sent", "followups", "help_status_log", "help_notes", "help_requests",
+_TABLES = ("project_settings", "outbox", "pushes_sent", "followups", "help_status_log", "help_notes", "help_requests",
            "checkins", "webhook_events", "users", "weekly_tasks")
 
 
@@ -260,6 +260,18 @@ class PostgresDatabase:
     def list_followups(self):
         return self._q("SELECT u.line_user_id AS user_id, f.kind, f.outcome::text AS outcome, f.created_at "
                        "FROM followups f JOIN users u ON u.id = f.user_id ORDER BY u.line_user_id, f.kind")
+
+    # ---- team-set values (the project start date) --------------------------------------
+    def get_setting(self, key):
+        row = self._one("SELECT value FROM project_settings WHERE key = %s", (key,))
+        return row["value"] if row else None
+
+    def set_setting(self, key, value):
+        self._run("INSERT INTO project_settings (key, value) VALUES (%s, %s) "
+                  "ON CONFLICT (key) DO UPDATE SET value = EXCLUDED.value, updated_at = now()", (key, str(value)))
+
+    def has_checkins(self):
+        return self._one("SELECT 1 AS x FROM checkins LIMIT 1") is not None
 
     # ---- weekly tasks ----------------------------------------------------------------
     def get_task(self, week):

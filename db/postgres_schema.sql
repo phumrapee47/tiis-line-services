@@ -43,6 +43,13 @@ CREATE TABLE weekly_tasks (
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- team-set values: today only the project start date
+CREATE TABLE project_settings (
+  key         TEXT PRIMARY KEY CHECK (char_length(key) BETWEEN 1 AND 64),
+  value       TEXT NOT NULL CHECK (char_length(value) <= 200),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE checkins (
   user_id        UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
   week           SMALLINT NOT NULL REFERENCES weekly_tasks (week),
@@ -131,6 +138,7 @@ CREATE TRIGGER trg_tasks_updated BEFORE UPDATE ON weekly_tasks FOR EACH ROW EXEC
 CREATE TRIGGER trg_checkins_updated BEFORE UPDATE ON checkins FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER trg_help_updated BEFORE UPDATE ON help_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+ALTER TABLE project_settings   ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE weekly_tasks     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE checkins         ENABLE ROW LEVEL SECURITY;

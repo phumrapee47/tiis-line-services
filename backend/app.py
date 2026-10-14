@@ -9,6 +9,8 @@
   POST /api/admin/run-scheduled     queue reminders/follow-ups for a date (demo/cron)
   GET  /api/report[?week=1..6]      team: counts for the board (reported / not reported, progress, help, follow-up)
   GET  /api/export.csv?kind=..      team: learners | checkins | help | followups as CSV
+  GET  /api/settings                team: project start date and the schedule computed from it
+  PUT  /api/settings                team: set the start date (confirm_shift when reports already exist)
   GET  /api/tasks                   team: weekly tasks shown to learners
   PUT  /api/tasks/<week>            team: set title/description of week 1-4
   GET  /api/followups               team: answers to the 14-day follow-up
@@ -18,7 +20,7 @@ DATABASE_URL they answer 404.
 """
 import json
 import logging
-from datetime import date
+from datetime import date, timedelta
 from pathlib import Path
 
 from flask import Flask, Response, jsonify, request, send_from_directory
@@ -36,6 +38,29 @@ def create_app(db=None, bot=None):
     app.json.ensure_ascii = False
     db = db or open_database()
     bot = bot or Bot(db)
+
+    saved = db.get_setting(config.START_SETTING)
+    if saved:
+        try:
+            config.set_project_start(date.fromisoformat(saved))
+        except ValueError:
+            logging.warning("ignoring a stored project start date that is not a date: %r", saved)
+
+    def settings_view():
+        today = config.today()
+        start = config.PROJECT_START
+        state = config.project_state(today)
+        iso = lambda d: d.isoformat()
+        return {
+            "project_start": iso(start), "start_is_set": db.get_setting(config.START_SETTING) is not None,
+            "today": iso(today), "state": state,
+            "days_until_start": max((start - today).days, 0),
+            "day_no": (today - start).days + 1 if today >= start else 0,
+            "week": config.week_no(today), "has_reports": db.has_checkins(),
+            "schedule": {"main_end": iso(config.main_activity_end()), "project_end": iso(config.project_end()),
+                         "followups": {k: iso(v) for k, v in config.followup_dates().items()},
+                         "main_days": config.MAIN_ACTIVITY_DAYS, "project_days": config.PROJECT_DAYS},
+        }
 
     def flush_outbox():
         """Push queued system messages to real LINE users; simulated users poll instead."""
@@ -185,6 +210,29 @@ def create_app(db=None, bot=None):
         return Response(body, mimetype="text/csv",
                         headers={"Content-Disposition": f"attachment; filename=tiis-{kind}.csv",
                                  "Cache-Control": "no-store"})
+
+    @app.get("/api/settings")
+    def api_settings():
+        return jsonify(settings_view())
+
+    @app.put("/api/settings")
+    def api_save_settings():
+        body = request.get_json(silent=True) or {}
+        raw = body.get("project_start")
+        try:
+            new = date.fromisoformat(raw) if isinstance(raw, str) else None
+        except ValueError:
+            new = None
+        if new is None:
+            return jsonify(error="project_start must be a date like 2026-10-19"), 400
+        if not config.MIN_START <= new <= config.MAX_START:
+            return jsonify(error="project_start is out of range"), 400
+        # moving the start changes which week every existing report belongs to: make the caller say so
+        if new != config.PROJECT_START and db.has_checkins() and body.get("confirm_shift") is not True:
+            return jsonify(error="reports_exist"), 409
+        db.set_setting(config.START_SETTING, new.isoformat())
+        config.set_project_start(new)
+        return jsonify(ok=True, **settings_view())
 
     @app.get("/api/tasks")
     def api_tasks():
