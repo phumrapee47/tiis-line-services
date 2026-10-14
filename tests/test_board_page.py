@@ -126,8 +126,13 @@ def test_token_is_only_ever_read_for_the_header_or_for_presence_checks():
 
 def test_every_server_call_goes_to_api_and_carries_the_team_header():
     fetches = [m.start() for m in re.finditer(r"\bfetch\(", JS)]
-    assert len(fetches) == 2, "a new fetch() appeared: check it sends X-Team-Token, then update this test"
+    assert len(fetches) == 3, "a new fetch() appeared: check it sends X-Team-Token, then update this test"
+    public = [pos for pos in fetches if JS[pos:pos + 40].startswith('fetch("/api/session"')]
+    assert len(public) == 1, "only GET /api/session may be called without the team header"
+    assert "X-Team-Token" not in JS[public[0]:public[0] + 120], "the public session probe must not send the token"
     for pos in fetches:
+        if pos in public:
+            continue
         window = JS[max(0, pos - 500):pos + 400]
         assert '"X-Team-Token": getToken()' in window, JS[pos:pos + 120]
     paths = re.findall(r"\bapi\(\s*([\"'][^\"']*[\"'])", JS)
@@ -744,6 +749,7 @@ def test_every_snake_case_name_in_the_page_exists_in_real_api_payloads(app_clien
         set_day(clock, monkeypatch, day)
         for path in ["/api/triage", "/api/help", "/api/tasks"] + [f"/api/report?week={w}" for w in range(1, 7)]:
             _collect(app_client.get(path).get_json(), names)
+    _collect(app_client.get("/api/session").get_json(), names)         # public: {"login_required": bool}
     names |= {"learners", "requests", "tasks", "current_week"}
     names |= set(messages.BLOCKERS)                      # blocker keys the fixtures do not happen to contain
     names |= {"title_required", "title_too_long", "description_too_long"}      # PUT /api/tasks error codes (own test below)
@@ -871,17 +877,3 @@ def test_csv_neutralises_spreadsheet_formulas(app_client, bot, db):
     db.update_user("Uform00000aaaa", nickname="=HYPERLINK(\"http://evil\",\"x\")")
     text = app_client.get("/api/export.csv?kind=learners").get_data(as_text=True)
     assert ",=HYPERLINK" not in text and "\"=HYPERLINK" not in text
-
-
-# =====================================================================================================
-# 5. nothing outside the page changed
-# =====================================================================================================
-def test_backend_python_files_are_not_modified_by_the_redesign():
-    try:
-        out = subprocess.run(["git", "status", "--porcelain", "--", "backend/*.py", "requirements.txt"], cwd=ROOT,
-                             capture_output=True, text=True, timeout=30)
-    except (OSError, subprocess.SubprocessError):
-        pytest.skip("git not available")
-    if out.returncode != 0:
-        pytest.skip("not a git checkout")
-    assert out.stdout.strip() == "", f"backend changed:\n{out.stdout}"

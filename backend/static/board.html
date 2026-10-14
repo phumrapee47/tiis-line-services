@@ -324,6 +324,11 @@ main { padding: 8px 0 88px; }
         <button id="refreshBtn" class="btn" type="button">รีเฟรช</button>
       </div>
     </header>
+    <div id="openNote" class="banner inf" hidden>
+      <span class="mark" aria-hidden="true">i</span>
+      <span class="msg"><strong>โหมดเปิดสำหรับการตรวจงาน:</strong> หน้านี้ไม่มีการล็อกอิน ใครมีลิงก์ก็เปิดดูได้
+        ควรใช้กับข้อมูลทดลองเท่านั้น</span>
+    </div>
     <div id="banner" class="banner err" role="alert" hidden>
       <span class="mark bad" aria-hidden="true">!</span>
       <span class="msg"><strong>เกิดข้อผิดพลาด:</strong> <span id="bannerText"></span></span>
@@ -483,6 +488,8 @@ let S = freshState();
 /* ---- sign-in state: sessionStorage only, with an in-memory fallback if the browser blocks it ---- */
 const TOKEN_KEY = "teamToken";
 let memToken = "";
+let openMode = false;   // the server said no team code is needed (local demo only)
+function signedIn() { return openMode || getToken() !== ""; }
 function getToken() {
   if (memToken) return memToken;
   try { return sessionStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; }
@@ -671,12 +678,13 @@ function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
 let timer = null;
 function startTimer() {
   stopTimer();
-  timer = setInterval(() => { if (!document.hidden && getToken() && S.loaded) loadAll("auto"); }, REFRESH_MS);
+  timer = setInterval(() => { if (!document.hidden && signedIn() && S.loaded) loadAll("auto"); }, REFRESH_MS);
 }
 
 /* signed out for any reason: drop the sign-in, every learner detail, and any half-typed editor */
 function forceLogin(msg, keepHash) {
   setToken("");
+  openMode = false; $("openNote").hidden = true; $("logoutBtn").hidden = false;   // the server wants a code after all
   sessionId++;
   stopTimer();
   S = freshState();
@@ -1610,8 +1618,31 @@ function init() {
   $("weekSelect").addEventListener("change", (e) => changeWeek(Number(e.target.value)));
   window.addEventListener("hashchange", () => { if (!$("appView").hidden) syncRoute(true); });
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && getToken() && S.loaded && S.updatedAt && Date.now() - S.updatedAt.getTime() > REFRESH_MS) loadAll("auto");
+    if (!document.hidden && signedIn() && S.loaded && S.updatedAt && Date.now() - S.updatedAt.getTime() > REFRESH_MS) loadAll("auto");
   });
+  startUp();
+}
+
+/* Ask the server first whether a team code is needed at all (public GET /api/session, sends no token). */
+async function askLoginRequired() {
+  try {
+    const res = await fetch("/api/session", { cache: "no-store" });
+    if (!res.ok) return true;
+    const body = await res.json();
+    return body.login_required !== false;
+  } catch (e) {
+    return true;   // can't tell: behave as if a code is needed
+  }
+}
+
+async function startUp() {
+  if (!(await askLoginRequired())) {
+    openMode = true;
+    $("logoutBtn").hidden = true;
+    $("openNote").hidden = false;
+    showApp(); renderAll(); loadAll("first"); startTimer();
+    return;
+  }
   if (getToken()) {
     showApp();
     renderAll();

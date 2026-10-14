@@ -12,7 +12,7 @@ Try it without LINE:
 ```bash
 curl -X POST localhost:5000/api/sim/event -H "Content-Type: application/json" \
   -d '{"user_id":"a","type":"follow"}'
-curl localhost:5000/api/triage
+curl localhost:5000/api/triage        # or just open http://127.0.0.1:5000/board (no login)
 ```
 
 ## Connect real LINE (optional)
@@ -31,5 +31,7 @@ The rich menu's four buttons send these exact texts: `รายงานคว�
 
 ## Known limits
 - Triage weights are starting assumptions, untested with real learners.
-- Team endpoints have no login (out of scope for the prototype).
+- The team board has **no login** by default, so evaluators can open it straight away: anyone with the link can see learner
+  data and change help requests. Set `TEAM_AUTH=on` (and `TEAM_TOKEN`) to require the team code again. `/api/admin/*` and
+  `/api/sim/*` always need `TEAM_TOKEN` on an instance with a LINE token or `DATABASE_URL`.
 - Reply promise "within 1 working day" is a placeholder (`SLA_TEXT`).

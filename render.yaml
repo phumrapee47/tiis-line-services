@@ -15,8 +15,9 @@ services:
         sync: false
       - key: LINE_CHANNEL_TOKEN
         sync: false
-      - key: TEAM_TOKEN
+      - key: TEAM_TOKEN            # protects /api/admin/* and /api/sim/*; also the board when TEAM_AUTH=on
         generateValue: true
+      # The team board is open (no login) unless TEAM_AUTH=on is set here.
       - key: DATABASE_URL          # Supabase Session pooler URI (contains the DB password): set in the dashboard
         sync: false
       - key: PROJECT_START

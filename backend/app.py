@@ -12,7 +12,9 @@
   GET  /api/tasks                   team: weekly tasks shown to learners
   PUT  /api/tasks/<week>            team: set title/description of week 1-4
   GET  /api/followups               team: answers to the 14-day follow-up
-All /api/* calls need the header X-Team-Token (= TEAM_TOKEN). One shared token, no per-user login."""
+The board and its team endpoints are open by default (no login). TEAM_AUTH=on requires the header X-Team-Token
+(= TEAM_TOKEN) on all of them; one shared token, no per-user login. /api/admin/* and /api/sim/* always need the token
+on an instance with a LINE token or DATABASE_URL. GET /api/session is public (tells the page whether to ask for a code)."""
 import hmac
 import json
 import logging
@@ -33,6 +35,9 @@ def create_app(db=None, bot=None):
     app = Flask(__name__)
     app.json.ensure_ascii = False
     db = db or open_database()
+    if not config.auth_required() and config.restricted_instance():
+        logging.warning("The team board is OPEN (TEAM_AUTH is not 'on') on an instance with LINE or DATABASE_URL: "
+                        "anyone with the link can read learner data and change help requests")
     bot = bot or Bot(db)
 
     def flush_outbox():
@@ -50,8 +55,10 @@ def create_app(db=None, bot=None):
     @app.before_request
     def require_team_token():
         """/webhook is protected by LINE's signature and /health is public; all of /api/* needs the token."""
-        if not request.path.startswith("/api/"):
+        if not request.path.startswith("/api/") or request.path == "/api/session":
             return None
+        if not config.needs_team_token(request.path):
+            return None  # open board: no team code (see config.needs_team_token for what stays protected)
         if not config.TEAM_TOKEN:
             return jsonify(error="API disabled: set TEAM_TOKEN"), 503
         given = request.headers.get("X-Team-Token", "")
@@ -64,6 +71,11 @@ def create_app(db=None, bot=None):
         resp = send_from_directory(Path(__file__).parent / "static", "board.html")
         resp.headers["Cache-Control"] = "no-store"
         return resp
+
+    @app.get("/api/session")
+    def api_session():
+        """Public on purpose: tells the page whether it must ask for the team code. Reveals nothing else."""
+        return jsonify(login_required=config.auth_required())
 
     @app.get("/health")
     def health():
