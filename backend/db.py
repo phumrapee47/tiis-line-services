@@ -4,6 +4,8 @@ import sqlite3
 import threading
 from datetime import datetime, timezone
 
+from .tasks import DEFAULT_TASKS
+
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS users (
     user_id TEXT PRIMARY KEY, nickname TEXT, goal TEXT,
@@ -13,7 +15,7 @@ CREATE TABLE IF NOT EXISTS users (
 CREATE TABLE IF NOT EXISTS checkins (
     user_id TEXT NOT NULL, week INTEGER NOT NULL,
     progress TEXT NOT NULL, confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 5),
-    blocker TEXT, wants_contact INTEGER NOT NULL DEFAULT 0,
+    blocker TEXT, wants_contact INTEGER NOT NULL DEFAULT 0, task_title TEXT,
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
     PRIMARY KEY (user_id, week)
 );
@@ -22,6 +24,10 @@ CREATE TABLE IF NOT EXISTS help_requests (
     category TEXT NOT NULL, detail TEXT,
     status TEXT NOT NULL DEFAULT 'waiting',
     created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS weekly_tasks (
+    week INTEGER PRIMARY KEY CHECK (week BETWEEN 1 AND 4),
+    title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL
 );
 CREATE TABLE IF NOT EXISTS events (event_id TEXT PRIMARY KEY, received_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS outbox (
@@ -49,6 +55,23 @@ class Database:
         self.conn = sqlite3.connect(path, check_same_thread=False)
         self.conn.row_factory = sqlite3.Row
         self.conn.executescript(SCHEMA)
+        self._migrate()
+        self._seed_tasks()
+
+    def _migrate(self):
+        # databases created before weekly tasks existed lack the snapshot column
+        cols = {r["name"] for r in self.conn.execute("PRAGMA table_info(checkins)")}
+        if "task_title" not in cols:
+            self.conn.execute("ALTER TABLE checkins ADD COLUMN task_title TEXT")
+            self.conn.commit()
+
+    def _seed_tasks(self):
+        if not self.conn.execute("SELECT 1 FROM weekly_tasks LIMIT 1").fetchone():
+            for week, (title, desc) in DEFAULT_TASKS.items():
+                self.conn.execute(
+                    "INSERT INTO weekly_tasks (week, title, description, updated_at) VALUES (?,?,?,?)",
+                    (week, title, desc, _now()))
+            self.conn.commit()
 
     def _q(self, sql, args=()):
         with self.lock:
@@ -102,17 +125,32 @@ class Database:
         rows = self._q("SELECT * FROM checkins WHERE user_id=? AND week=?", (user_id, week))
         return dict(rows[0]) if rows else None
 
-    def upsert_checkin(self, user_id, week, progress, confidence, blocker, wants_contact):
+    def upsert_checkin(self, user_id, week, progress, confidence, blocker, wants_contact, task_title=None):
         now = _now()
         self._x(
             """INSERT INTO checkins (user_id, week, progress, confidence, blocker, wants_contact,
-                                     created_at, updated_at)
-               VALUES (?,?,?,?,?,?,?,?)
+                                     task_title, created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?,?)
                ON CONFLICT(user_id, week) DO UPDATE SET
                  progress=excluded.progress, confidence=excluded.confidence,
                  blocker=excluded.blocker, wants_contact=excluded.wants_contact,
+                 task_title=excluded.task_title,
                  updated_at=excluded.updated_at""",
-            (user_id, week, progress, confidence, blocker, int(wants_contact), now, now))
+            (user_id, week, progress, confidence, blocker, int(wants_contact), task_title, now, now))
+
+    # weekly tasks (set by the team)
+    def get_task(self, week):
+        rows = self._q("SELECT * FROM weekly_tasks WHERE week=?", (week,))
+        return dict(rows[0]) if rows else None
+
+    def list_tasks(self):
+        return [dict(r) for r in self._q("SELECT * FROM weekly_tasks ORDER BY week")]
+
+    def save_task(self, week, title, description):
+        self._x("""INSERT INTO weekly_tasks (week, title, description, updated_at) VALUES (?,?,?,?)
+                   ON CONFLICT(week) DO UPDATE SET title=excluded.title,
+                   description=excluded.description, updated_at=excluded.updated_at""",
+                (week, title, description, _now()))
 
     def checkin_weeks(self, user_id):
         return {r["week"] for r in self._q("SELECT week FROM checkins WHERE user_id=?", (user_id,))}

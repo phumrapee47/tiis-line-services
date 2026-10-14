@@ -7,6 +7,8 @@
   GET  /api/help[?status=..]        team: help requests
   POST /api/help/<id>/status        team: move a request along (accepted/replied/closed)
   POST /api/admin/run-scheduled     queue reminders/follow-ups for a date (demo/cron)
+  GET  /api/tasks                   team: weekly tasks shown to learners
+  PUT  /api/tasks/<week>            team: set title/description of week 1-4
   GET  /api/followups               team: answers to the 14-day follow-up
 All /api/* calls need the header X-Team-Token (= TEAM_TOKEN). One shared token, no per-user login."""
 import hmac
@@ -17,7 +19,7 @@ from pathlib import Path
 
 from flask import Flask, jsonify, request, send_from_directory
 
-from . import config, line_adapter, scheduler, team, triage
+from . import config, line_adapter, scheduler, tasks, team, triage
 from .bot import Bot
 from .db import Database
 
@@ -139,6 +141,19 @@ def create_app(db=None, bot=None):
         queued = scheduler.run_scheduled(db, day)
         flush_outbox()
         return jsonify(queued=[{"user_id": u, "kind": k} for u, k in queued])
+
+    @app.get("/api/tasks")
+    def api_tasks():
+        return jsonify(tasks=db.list_tasks(), current_week=config.week_no(config.today()))
+
+    @app.put("/api/tasks/<int:week>")
+    def api_save_task(week):
+        body = request.get_json(silent=True) or {}
+        err = tasks.validate_task(week, body.get("title"), body.get("description", ""))
+        if err:
+            return jsonify(error=err), 404 if err == "week_must_be_1_to_4" else 400
+        db.save_task(week, body["title"].strip(), (body.get("description") or "").strip())
+        return jsonify(ok=True, task=db.get_task(week))
 
     @app.get("/api/followups")
     def api_followups():

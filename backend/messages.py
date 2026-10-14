@@ -60,8 +60,20 @@ def welcome_back(nickname):
 
 
 # check-in
-def ask_progress(week):
-    return text(f"สัปดาห์ที่ {week} เป็นยังไงบ้าง?", [qr(v, "ci_progress", k) for k, v in PROGRESS.items()])
+def task_line(week, task):
+    """'งานสัปดาห์ที่ N: หัวข้อ' plus the description; empty when the team set no task (weeks 5-6)."""
+    if not task:
+        return ""
+    desc = f"\n{task['description']}" if task.get("description") else ""
+    return f"📌 งานสัปดาห์ที่ {week}: {task['title']}{desc}\n\n"
+
+
+def ask_progress(week, task=None):
+    if task:
+        head = f"{task_line(week, task)}ความคืบหน้าของงานนี้เป็นยังไงบ้าง?"
+    else:
+        head = f"สัปดาห์ที่ {week} เป็นยังไงบ้าง?"
+    return text(head, [qr(v, "ci_progress", k) for k, v in PROGRESS.items()])
 
 
 def ask_conf():
@@ -131,8 +143,10 @@ def help_status_changed(help_id, status):
 
 
 # status / info / resume / fallback
-def status(week, checkin, helps):
+def status(week, checkin, helps, task=None):
     lines = [f"สถานะของคุณ (สัปดาห์ที่ {week})"]
+    if task:
+        lines.append(f"• งานสัปดาห์นี้: {task['title']}")
     if checkin:
         lines.append(f"• รายงานสัปดาห์นี้: ส่งแล้ว ({PROGRESS[checkin['progress']]}, มั่นใจ {checkin['confidence']}/5)")
     else:
@@ -175,12 +189,14 @@ def text_too_long():
 
 
 # scheduled pushes
-def weekly_start(week):
-    return text(f"สัปดาห์ที่ {week} เริ่มแล้ว 🚀 พร้อมเมื่อไหร่ กดรายงานความคืบหน้าได้เลย", _menu_quick())
+def weekly_start(week, task=None):
+    return text(f"สัปดาห์ที่ {week} เริ่มแล้ว 🚀\n{task_line(week, task)}พร้อมเมื่อไหร่ กดรายงานความคืบหน้าได้เลย",
+                _menu_quick())
 
 
-def nudge(week):
-    return text(f"สัปดาห์ที่ {week} ผ่านมาครึ่งทางแล้ว ลองรายงานความคืบหน้าสั้นๆ ไหม? ใช้เวลาไม่ถึงนาที 🙂",
+def nudge(week, task=None):
+    name = f" (งาน: {task['title']})" if task else ""
+    return text(f"สัปดาห์ที่ {week} ผ่านมาครึ่งทางแล้ว{name} ลองรายงานความคืบหน้าสั้นๆ ไหม? ใช้เวลาไม่ถึงนาที 🙂",
                 _menu_quick())
 
 

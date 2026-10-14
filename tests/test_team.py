@@ -287,3 +287,93 @@ def test_timestamps_are_utc_with_offset_so_browsers_show_local_time(bot, db):
     c.tap("เนื้อหา")
     c.tap("ข้าม")
     assert db.list_help()[0]["created_at"].endswith("+00:00")
+
+
+# ---- weekly tasks (set by the team) ---------------------------------------------------
+def test_default_tasks_exist_for_main_activity_weeks_only(db):
+    assert [t["week"] for t in db.list_tasks()] == [1, 2, 3, 4]
+
+
+def test_checkin_question_names_this_weeks_task(bot, db):
+    c = register(bot)
+    c.say("รายงานความคืบหน้า")
+    title = db.get_task(1)["title"]
+    assert f"งานสัปดาห์ที่ 1: {title}" in c.text
+
+
+def test_status_and_weekly_push_show_the_task(bot, db):
+    c = register(bot)
+    c.say("สถานะของฉัน")
+    assert db.get_task(1)["title"] in c.text
+    scheduler.run_scheduled(db, config.PROJECT_START)
+    pushed = db.pending_outbox("U1")[0]["messages"][0]["text"]
+    assert db.get_task(1)["title"] in pushed
+
+
+def test_edited_task_applies_to_new_reports_but_old_report_keeps_its_title(bot, db):
+    old = register(bot, "U1", "เก่า")
+    checkin(old, "เสร็จแล้ว", 5)
+    original = db.get_task(1)["title"]
+    db.save_task(1, "หัวข้อใหม่จากทีม", "")
+    new = register(bot, "U2", "ใหม่")
+    new.say("รายงานความคืบหน้า")
+    assert "หัวข้อใหม่จากทีม" in new.text
+    assert db.get_checkin("U1", 1)["task_title"] == original
+
+
+def test_old_database_without_task_column_is_migrated_and_keeps_rows(tmp_path):
+    import sqlite3
+    from backend.db import Database
+    path = tmp_path / "old.db"
+    old = sqlite3.connect(path)
+    old.executescript("""
+        CREATE TABLE checkins (user_id TEXT NOT NULL, week INTEGER NOT NULL, progress TEXT NOT NULL,
+            confidence INTEGER NOT NULL, blocker TEXT, wants_contact INTEGER NOT NULL DEFAULT 0,
+            created_at TEXT NOT NULL, updated_at TEXT NOT NULL, PRIMARY KEY (user_id, week));
+        INSERT INTO checkins VALUES ('U1', 1, 'done', 5, NULL, 0, 't', 't');""")
+    old.commit()
+    old.close()
+    migrated = Database(str(path))
+    row = migrated.get_checkin("U1", 1)
+    assert row["progress"] == "done" and row["task_title"] is None
+    migrated.upsert_checkin("U1", 2, "doing", 3, None, False, "งาน")
+    assert migrated.get_checkin("U1", 2)["task_title"] == "งาน"
+
+
+def test_tasks_api_lists_and_saves(client, db):
+    got = client.get("/api/tasks").get_json()
+    assert [t["week"] for t in got["tasks"]] == [1, 2, 3, 4] and got["current_week"] == 1
+    r = client.put("/api/tasks/2", json={"title": "  งานใหม่  ", "description": "รายละเอียด"})
+    assert r.status_code == 200 and r.get_json()["task"]["title"] == "งานใหม่"
+    assert db.get_task(2)["description"] == "รายละเอียด"
+
+
+@pytest.mark.parametrize("week,body,status,error", [
+    (1, {"title": ""}, 400, "title_required"),
+    (1, {"title": "   "}, 400, "title_required"),
+    (1, {}, 400, "title_required"),
+    (1, {"title": "ก" * 121}, 400, "title_too_long"),
+    (1, {"title": "ก" * 120}, 200, None),            # boundary: exactly the limit is fine
+    (1, {"title": "x", "description": "ก" * 501}, 400, "description_too_long"),
+    (1, {"title": "x", "description": "ก" * 500}, 200, None),
+    (1, {"title": "x", "description": 5}, 400, "description_must_be_text"),
+    (0, {"title": "x"}, 404, "week_must_be_1_to_4"),
+    (5, {"title": "x"}, 404, "week_must_be_1_to_4"),
+])
+def test_tasks_api_validation(client, week, body, status, error):
+    r = client.put(f"/api/tasks/{week}", json=body)
+    assert r.status_code == status
+    assert error is None or r.get_json()["error"] == error
+
+
+def test_tasks_api_requires_token(db, bot, monkeypatch):
+    monkeypatch.setattr(config, "TEAM_TOKEN", "team-test-token")
+    anon = create_app(db, bot).test_client()
+    assert anon.get("/api/tasks").status_code == 401
+    assert anon.put("/api/tasks/1", json={"title": "x"}).status_code == 401
+    assert db.get_task(1)["title"] != "x"
+
+
+def test_board_page_has_the_task_editor(db, bot):
+    page = create_app(db, bot).test_client().get("/board").get_data(as_text=True)
+    assert "งานรายสัปดาห์" in page and "/api/tasks" in page

@@ -52,6 +52,10 @@
   ul { margin: 6px 0 0; padding-left: 20px; }
   .detail { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
   .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
+  .task input[type=text], .task textarea { width: 100%; border: 1px solid var(--line); background: var(--bg);
+           border-radius: 8px; padding: 8px 10px; font: inherit; color: inherit; margin-top: 6px; }
+  .task textarea { min-height: 64px; resize: vertical; }
+  .task .saved { color: var(--ok); font-size: .9rem; }
   .empty { background: var(--card); border: 1px dashed var(--line); border-radius: 10px;
            padding: 18px; text-align: center; color: var(--muted); }
   .banner { margin-top: 12px; padding: 10px 14px; border-radius: 10px; background: var(--high-bg); color: var(--high); }
@@ -109,6 +113,11 @@
       <span class="muted">เมื่อเปลี่ยนสถานะ ผู้เรียนจะได้รับแจ้งทาง LINE</span>
     </div>
     <div id="helps"></div>
+
+    <h2>งานรายสัปดาห์ (ทีมกำหนด)</h2>
+    <p class="muted">หัวข้อนี้แสดงในคำถามรายงานความคืบหน้าและข้อความเริ่มสัปดาห์ ใช้ชุดเดียวกันทุกเป้าหมาย
+      แก้แล้วมีผลกับการรายงานครั้งถัดไป (รายงานที่ส่งไปแล้วยังเก็บหัวข้อเดิมไว้)</p>
+    <div id="tasks"></div>
     <p class="muted">คะแนนความเสี่ยงมาจากกฎที่ตั้งไว้เป็นค่าเริ่มต้น ยังไม่ได้ทดสอบกับผู้เรียนจริง ใช้ประกอบดุลยพินิจของทีมเท่านั้น</p>
   </main>
 </div>
@@ -128,7 +137,7 @@ const NEXT = {
 };
 const STATUS_ORDER = { waiting: 0, accepted: 1, replied: 2, closed: 3 };
 const $ = (id) => document.getElementById(id);
-let learners = [], helps = [], timer = null;
+let learners = [], helps = [], tasks = [], currentWeek = 0, tasksDirty = false, timer = null;
 
 // Build DOM with textContent only: nicknames and help details are user-typed (no innerHTML).
 function el(tag, props = {}, ...kids) {
@@ -164,12 +173,14 @@ function showError(msg) { $("error").hidden = !msg; $("error").textContent = msg
 
 async function load() {
   try {
-    const [t, h] = await Promise.all([api("/api/triage"), api("/api/help")]);
-    learners = t.learners; helps = h.requests;
+    const [t, h, k] = await Promise.all([api("/api/triage"), api("/api/help"), api("/api/tasks")]);
+    learners = t.learners; helps = h.requests; tasks = k.tasks; currentWeek = k.current_week;
     $("login").hidden = true; $("app").hidden = false;
     showError("");
     $("updated").textContent = "อัปเดตล่าสุด " + new Date().toLocaleTimeString("th-TH");
     render();
+    // never rebuild the editor while the team is typing in it
+    if (!tasksDirty && !$("tasks").contains(document.activeElement)) renderTasks();
   } catch (e) {
     if (e instanceof AuthError) { setToken(""); showLogin(e.message); }
     else if ($("app").hidden) showLogin(e.message);
@@ -194,6 +205,38 @@ function render() {
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.id - b.id);
   $("helps").replaceChildren(...(rows.length ? rows.map(helpCard)
     : [el("div", { class: "empty", text: "ไม่มีเรื่องในหมวดนี้" })]));
+}
+
+function renderTasks() {
+  $("tasks").replaceChildren(...tasks.map(taskCard));
+}
+
+const TASK_ERRORS = { title_required: "กรุณากรอกหัวข้อ", title_too_long: "หัวข้อยาวเกิน 120 ตัวอักษร",
+                      description_too_long: "คำอธิบายยาวเกิน 500 ตัวอักษร" };
+
+function taskCard(t) {
+  const title = el("input", { type: "text", value: t.title, maxLength: 120, ariaLabel: "หัวข้อสัปดาห์ที่ " + t.week });
+  const desc = el("textarea", { value: t.description, maxLength: 500, ariaLabel: "คำอธิบายสัปดาห์ที่ " + t.week });
+  const msg = el("span", { class: "saved" });
+  const save = el("button", { type: "button", text: "บันทึก", className: "primary" });
+  [title, desc].forEach((f) => f.addEventListener("input", () => { tasksDirty = true; msg.textContent = ""; }));
+  save.addEventListener("click", async () => {
+    save.disabled = true;
+    try {
+      await api("/api/tasks/" + t.week, { method: "PUT", body: JSON.stringify({ title: title.value, description: desc.value }) });
+      tasksDirty = false; msg.className = "saved"; msg.textContent = "บันทึกแล้ว ✓";
+      showError("");
+    } catch (e) {
+      if (e instanceof AuthError) { setToken(""); return showLogin(e.message); }
+      msg.className = "muted"; msg.textContent = "";
+      showError(TASK_ERRORS[e.message] || e.message);
+    }
+    save.disabled = false;
+  });
+  return el("div", { class: "card normal task" },
+    el("div", { class: "top" }, el("span", { class: "name", text: "สัปดาห์ที่ " + t.week }),
+      t.week === currentWeek ? el("span", { class: "badge info", text: "สัปดาห์ปัจจุบัน" }) : null),
+    title, desc, el("div", { class: "actions" }, save, msg));
 }
 
 function learnerCard(l) {

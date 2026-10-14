@@ -102,7 +102,7 @@ class Bot:
             "consent": lambda: [M.consent()],
             "nickname": lambda: [M.ask_nickname()],
             "goal": lambda: [M.ask_goal()],
-            "ci_progress": lambda: [M.ask_progress(week)],
+            "ci_progress": lambda: [M.ask_progress(week, self.db.get_task(week))],
             "ci_conf": lambda: [M.ask_conf()],
             "ci_blocker": lambda: [M.ask_blocker()],
             "ci_blocker_text": lambda: [M.ask_blocker_text()],
@@ -156,7 +156,8 @@ class Bot:
 
     def _status(self, uid):
         week = week_no(self.today())
-        return M.status(week, self.db.get_checkin(uid, week), self.db.user_help(uid, 3))
+        return M.status(week, self.db.get_checkin(uid, week), self.db.user_help(uid, 3),
+                        self.db.get_task(week))
 
     # ---- onboarding -----------------------------------------------------------------
     def _on_consent(self, user, data, val):
@@ -191,13 +192,13 @@ class Bot:
             self.db.set_state(uid, "ci_edit", {"week": week})
             return [M.confirm_edit(week, existing)]
         self.db.set_state(uid, "ci_progress", {"week": week, "updated": bool(existing)})
-        return [M.ask_progress(week)]
+        return [M.ask_progress(week, self.db.get_task(week))]
 
     def _on_ci_edit(self, user, data, val):
         uid = user["user_id"]
         if val == "yes":
             self.db.set_state(uid, "ci_progress", {"week": data["week"], "updated": True})
-            return [M.ask_progress(data["week"])]
+            return [M.ask_progress(data["week"], self.db.get_task(data["week"]))]
         if val == "no":
             self.db.set_state(uid, "idle")
             return [M.edit_kept()]
@@ -205,7 +206,7 @@ class Bot:
 
     def _on_ci_progress(self, user, data, val):
         if val not in M.PROGRESS:
-            return [M.unknown(), M.ask_progress(data["week"])]
+            return [M.unknown(), M.ask_progress(data["week"], self.db.get_task(data["week"]))]
         self.db.set_state(user["user_id"], "ci_conf", {**data, "progress": val})
         return [M.ask_conf()]
 
@@ -251,7 +252,9 @@ class Bot:
 
     def _finish_checkin(self, uid, d):
         wants = bool(d.get("wants_contact", False))
-        self.db.upsert_checkin(uid, d["week"], d["progress"], d["confidence"], d.get("blocker"), wants)
+        task = self.db.get_task(d["week"])
+        self.db.upsert_checkin(uid, d["week"], d["progress"], d["confidence"], d.get("blocker"), wants,
+                               task["title"] if task else None)
         self.db.set_state(uid, "idle")
         return [M.checkin_saved(d["week"], d["progress"], d["confidence"], wants, d.get("updated", False))]
 
