@@ -56,6 +56,12 @@
            border-radius: 8px; padding: 8px 10px; font: inherit; color: inherit; margin-top: 6px; }
   .task textarea { min-height: 64px; resize: vertical; }
   .task .saved { color: var(--ok); font-size: .9rem; }
+  .bar { height: 10px; background: var(--line); border-radius: 6px; overflow: hidden; }
+  .bar > i { display: block; height: 100%; background: var(--accent); }
+  .barrow { display: grid; grid-template-columns: 8.5em 1fr 4.5em; gap: 10px; align-items: center; margin: 6px 0; }
+  .barrow .n { text-align: right; font-variant-numeric: tabular-nums; }
+  .stat.alert { border-color: var(--high); background: var(--high-bg); }
+  .stat small { display: block; color: var(--muted); font-size: .8rem; }
   .empty { background: var(--card); border: 1px dashed var(--line); border-radius: 10px;
            padding: 18px; text-align: center; color: var(--muted); }
   .banner { margin-top: 12px; padding: 10px 14px; border-radius: 10px; background: var(--high-bg); color: var(--high); }
@@ -92,6 +98,21 @@
     </header>
     <div id="error" class="banner" hidden></div>
     <div class="stats" id="stats"></div>
+
+    <h2>รายงานสัปดาห์</h2>
+    <div class="row" style="margin-bottom:10px">
+      <label class="muted" for="reportWeek">สัปดาห์</label>
+      <select id="reportWeek"></select>
+      <span class="muted" style="margin-left:auto">ส่งออก</span>
+      <select id="exportKind" aria-label="ประเภทไฟล์ CSV">
+        <option value="learners">ผู้เรียนและระดับความเสี่ยง</option>
+        <option value="checkins">รายงานความคืบหน้า</option>
+        <option value="help">เรื่องขอความช่วยเหลือ</option>
+        <option value="followups">ผลติดตาม 14 วัน</option>
+      </select>
+      <button id="exportBtn" type="button">ดาวน์โหลด CSV</button>
+    </div>
+    <div id="report"></div>
 
     <h2>ผู้เรียนที่ควรตามก่อน</h2>
     <div class="row" style="margin-bottom:10px">
@@ -137,7 +158,8 @@ const NEXT = {
 };
 const STATUS_ORDER = { waiting: 0, accepted: 1, replied: 2, closed: 3 };
 const $ = (id) => document.getElementById(id);
-let learners = [], helps = [], tasks = [], currentWeek = 0, tasksDirty = false, timer = null;
+let learners = [], helps = [], tasks = [], report = null, reportWeek = null, currentWeek = 0,
+    tasksDirty = false, timer = null;
 
 // Build DOM with textContent only: nicknames and help details are user-typed (no innerHTML).
 function el(tag, props = {}, ...kids) {
@@ -173,12 +195,14 @@ function showError(msg) { $("error").hidden = !msg; $("error").textContent = msg
 
 async function load() {
   try {
-    const [t, h, k] = await Promise.all([api("/api/triage"), api("/api/help"), api("/api/tasks")]);
-    learners = t.learners; helps = h.requests; tasks = k.tasks; currentWeek = k.current_week;
+    const [t, h, k, r] = await Promise.all([api("/api/triage"), api("/api/help"), api("/api/tasks"),
+      api("/api/report" + (reportWeek ? "?week=" + reportWeek : ""))]);
+    learners = t.learners; helps = h.requests; tasks = k.tasks; currentWeek = k.current_week; report = r;
     $("login").hidden = true; $("app").hidden = false;
     showError("");
     $("updated").textContent = "อัปเดตล่าสุด " + new Date().toLocaleTimeString("th-TH");
     render();
+    renderReport();
     // never rebuild the editor while the team is typing in it
     if (!tasksDirty && !$("tasks").contains(document.activeElement)) renderTasks();
   } catch (e) {
@@ -205,6 +229,90 @@ function render() {
     .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.id - b.id);
   $("helps").replaceChildren(...(rows.length ? rows.map(helpCard)
     : [el("div", { class: "empty", text: "ไม่มีเรื่องในหมวดนี้" })]));
+}
+
+const BLOCKER = { dont_know_start: "ไม่รู้จะเริ่มตรงไหน", no_time: "ไม่มีเวลา", tool_hard: "เครื่องมือใช้ยาก",
+                  not_confident: "ไม่มั่นใจ", other: "อื่นๆ" };
+const FU = { fu_mid: "กลางช่วงติดตามผล", fu_final: "ครบ 14 วันหลังกิจกรรมหลัก" };
+const OUTCOME = { used: "ใช้แล้ว", not_yet: "ยังไม่ได้ใช้", stuck: "ติดปัญหา" };
+
+const tile = (label, value, sub, alert) => el("div", { class: "stat" + (alert ? " alert" : "") },
+  el("b", { text: String(value) }), el("span", { class: "muted", text: label }),
+  sub ? el("small", { text: sub }) : null);
+
+function renderReportWeeks() {
+  const sel = $("reportWeek");
+  if (sel.options.length !== currentWeek) {
+    sel.replaceChildren(...Array.from({ length: currentWeek }, (_, i) =>
+      el("option", { value: String(i + 1), text: "สัปดาห์ที่ " + (i + 1) + (i + 1 > 4 ? " (ติดตามผล)" : "") })));
+  }
+  sel.value = String(report.week);
+}
+
+// an open week is not missed yet, so its silence counts only the weeks before it
+function silentText(n, status) {
+  if (status === "open") {
+    return (n.silent_weeks ? "สัปดาห์ก่อนหน้าไม่ส่งมา " + n.silent_weeks + " สัปดาห์ติด · " : "") + "สัปดาห์นี้ยังไม่ส่ง";
+  }
+  return "ไม่ส่งมา " + n.silent_weeks + " สัปดาห์ติด";
+}
+
+function renderReport() {
+  const r = report;
+  renderReportWeeks();
+  const nodes = [];
+  const pct = r.eligible ? Math.round((100 * r.reported) / r.eligible) : 0;
+  const tiles = [tile("ลงทะเบียนแล้ว", r.registered + " คน",
+    "ยังไม่จบขั้นตอน " + r.onboarding_incomplete + " · ยังไม่ยินยอม " + r.awaiting_consent)];
+
+  if (r.status === "followup") {
+    nodes.push(el("div", { class: "empty", text: "สัปดาห์ที่ " + r.week + " เป็นช่วงติดตามผล ไม่มีรายงานรายสัปดาห์ ดูผลติดตามด้านล่าง" }));
+  } else if (r.status === "future") {
+    nodes.push(el("div", { class: "empty", text: "สัปดาห์นี้ยังไม่เริ่ม" }));
+  } else {
+    tiles.push(tile("รายงานแล้ว", r.reported + " จาก " + r.eligible, pct + "%"),
+      tile("ยังไม่รายงาน", r.not_reported.length + " คน", r.status === "open" ? "สัปดาห์นี้ยังเปิดรับ" : "สัปดาห์นี้ปิดแล้ว", r.not_reported.length > 0 && r.status === "closed"),
+      tile("ความมั่นใจเฉลี่ย", r.avg_confidence == null ? "-" : r.avg_confidence + " / 5", "จากผู้ที่รายงาน " + r.reported + " คน"),
+      tile("ขอให้ทีมติดต่อ", r.wants_contact + " คน"));
+  }
+  nodes.unshift(el("div", { class: "stats" }, tiles));
+
+  if (r.reported > 0) {
+    const bar = (label, n, total) => el("div", { class: "barrow" }, el("span", { text: label }),
+      el("div", { class: "bar", role: "img", ariaLabel: label + " " + n + " จาก " + total },
+        el("i", { style: "width:" + (total ? (100 * n) / total : 0) + "%" })),
+      el("span", { class: "n", text: n + " / " + total }));
+    nodes.push(el("h3", { class: "muted", text: "ความคืบหน้าของผู้ที่รายงาน" }),
+      ...Object.entries(LABEL.progress).map(([k, v]) => bar(v, r.progress[k] || 0, r.reported)));
+    const bl = Object.entries(r.blockers).sort((a, b) => b[1] - a[1]);
+    if (bl.length) {
+      nodes.push(el("h3", { class: "muted", text: "สาเหตุที่ติดขัด (ผู้ที่ติดอยู่หรือยังไม่เริ่ม)" }),
+        ...bl.map(([k, n]) => bar(BLOCKER[k] || k, n, bl.reduce((s, x) => s + x[1], 0))));
+    }
+  }
+
+  if (r.not_reported.length) {
+    nodes.push(el("h3", { class: "muted", text: "ยังไม่ได้รายงาน (" + r.not_reported.length + " คน)" }),
+      ...r.not_reported.map((n) => el("div", { class: "card " + (n.silent_weeks >= 2 ? "high" : "medium") },
+        el("div", { class: "top" }, el("span", { class: "name", text: n.nickname }), whoNote(n),
+          el("span", { class: "muted", text: silentText(n, r.status) + " · " +
+            (n.last_report_week ? "รายงานล่าสุดสัปดาห์ที่ " + n.last_report_week : "ยังไม่เคยรายงาน") })))));
+  }
+
+  const hs = r.help.by_status;
+  nodes.push(el("h3", { class: "muted", text: "เรื่องขอความช่วยเหลือ (ทุกสัปดาห์รวมกัน)" }),
+    el("div", { class: "stats" },
+      tile("รอทีมรับเรื่อง", hs.waiting), tile("ทีมรับแล้ว", hs.accepted), tile("ทีมตอบแล้ว", hs.replied), tile("ปิดเรื่อง", hs.closed),
+      tile("เกินกำหนดตอบ", r.help.overdue, "รอเกิน 1 วันทำการ (ไม่นับวันหยุดนักขัตฤกษ์)", r.help.overdue > 0)),
+    el("div", { class: "muted", text: "ที่ยังไม่ปิดแยกตามหมวด: " +
+      Object.entries(LABEL.cat).map(([k, v]) => v + " " + (r.help.open_by_category[k] || 0)).join(" · ") }));
+
+  nodes.push(el("h3", { class: "muted", text: "ผลติดตามหลังกิจกรรมหลัก" }),
+    ...Object.entries(r.followups).map(([k, f]) => el("div", { class: "card normal" },
+      el("div", { class: "top" }, el("span", { class: "name", text: FU[k] }),
+        el("span", { class: "muted", text: f.asked ? "ถามแล้ว " + f.asked + " คน · ตอบแล้ว " + f.answered + " · ยังไม่ตอบ " + f.pending : "ยังไม่ได้ถาม" })),
+      f.answered ? el("div", { text: Object.entries(OUTCOME).map(([o, v]) => v + " " + f.outcomes[o]).join(" · ") }) : null)));
+  $("report").replaceChildren(...nodes);
 }
 
 function renderTasks() {
@@ -269,6 +377,7 @@ function helpCard(r) {
       whoNote(r),
       el("span", { class: "badge info", text: LABEL.cat[r.category] || r.category }),
       el("span", { class: "badge " + (r.status === "waiting" ? "high" : r.status === "closed" ? "normal" : "medium"), text: LABEL.status[r.status] }),
+      r.overdue ? el("span", { class: "badge high", text: "เกินกำหนดตอบ" }) : null,
       el("span", { class: "muted", text: isNaN(created) ? "" : created.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" }) })),
     r.detail ? el("div", { class: "detail", text: r.detail }) : el("div", { class: "muted", text: "(ไม่ได้ระบุรายละเอียด)" }),
     acts.length ? el("div", { class: "actions" }, acts) : null);
@@ -294,6 +403,19 @@ $("loginForm").addEventListener("submit", (e) => {
 $("logout").addEventListener("click", () => { setToken(""); showLogin(""); });
 $("refresh").addEventListener("click", load);
 $("hideNormal").addEventListener("change", render);
+$("reportWeek").addEventListener("change", () => { reportWeek = $("reportWeek").value; load(); });
+$("exportBtn").addEventListener("click", async () => {
+  const kind = $("exportKind").value;
+  try {
+    const res = await fetch("/api/export.csv?kind=" + encodeURIComponent(kind), { headers: { "X-Team-Token": getToken() } });
+    if (res.status === 401) { setToken(""); return showLogin("รหัสทีมไม่ถูกต้อง"); }
+    if (!res.ok) throw new Error("ดาวน์โหลดไม่สำเร็จ (" + res.status + ")");
+    const url = URL.createObjectURL(await res.blob());
+    const a = el("a", { href: url, download: "tiis-" + kind + ".csv" });
+    document.body.append(a); a.click(); a.remove(); URL.revokeObjectURL(url);
+    showError("");
+  } catch (e) { showError(e.message); }
+});
 $("helpFilter").addEventListener("change", render);
 
 function startTimer() {

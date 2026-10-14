@@ -7,6 +7,8 @@
   GET  /api/help[?status=..]        team: help requests
   POST /api/help/<id>/status        team: move a request along (accepted/replied/closed)
   POST /api/admin/run-scheduled     queue reminders/follow-ups for a date (demo/cron)
+  GET  /api/report[?week=1..6]      team: counts for the board (reported / not reported, progress, help, follow-up)
+  GET  /api/export.csv?kind=..      team: learners | checkins | help | followups as CSV
   GET  /api/tasks                   team: weekly tasks shown to learners
   PUT  /api/tasks/<week>            team: set title/description of week 1-4
   GET  /api/followups               team: answers to the 14-day follow-up
@@ -17,9 +19,9 @@ import logging
 from datetime import date
 from pathlib import Path
 
-from flask import Flask, jsonify, request, send_from_directory
+from flask import Flask, Response, jsonify, request, send_from_directory
 
-from . import config, line_adapter, scheduler, tasks, team, triage
+from . import config, line_adapter, reports, scheduler, tasks, team, triage
 from .bot import Bot
 from .db import Database
 
@@ -131,6 +133,7 @@ def create_app(db=None, bot=None):
         for r in db.list_help(status):
             user = db.get_user(r["user_id"])
             rows.append({**{k: v for k, v in r.items() if k != "user_id"},
+                         "overdue": reports.is_overdue(r),
                          "nickname": user["nickname"] if user else None,
                          "display_name": user["display_name"] if user else None,
                          "ref": triage.short_ref(r["user_id"])})
@@ -155,6 +158,28 @@ def create_app(db=None, bot=None):
         queued = scheduler.run_scheduled(db, day)
         flush_outbox()
         return jsonify(queued=[{"user_id": u, "kind": k} for u, k in queued])
+
+    @app.get("/api/report")
+    def api_report():
+        today = config.today()
+        raw = request.args.get("week")
+        try:
+            week = int(raw) if raw else config.week_no(today)
+        except ValueError:
+            return jsonify(error="week must be a number 1-6"), 400
+        if not 1 <= week <= 6:
+            return jsonify(error="week must be a number 1-6"), 400
+        return jsonify(reports.weekly_report(db, week, today))
+
+    @app.get("/api/export.csv")
+    def api_export():
+        kind = request.args.get("kind", "")
+        if kind not in reports.CSV_KINDS:
+            return jsonify(error="kind must be one of " + ", ".join(reports.CSV_KINDS)), 400
+        body = reports.export_csv(db, kind, config.today())
+        return Response(body, mimetype="text/csv",
+                        headers={"Content-Disposition": f"attachment; filename=tiis-{kind}.csv",
+                                 "Cache-Control": "no-store"})
 
     @app.get("/api/tasks")
     def api_tasks():

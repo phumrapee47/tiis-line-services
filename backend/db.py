@@ -156,6 +156,12 @@ class Database:
     def checkin_weeks(self, user_id):
         return {r["week"] for r in self._q("SELECT week FROM checkins WHERE user_id=?", (user_id,))}
 
+    def all_checkins(self):
+        return [dict(r) for r in self._q("SELECT * FROM checkins ORDER BY week, user_id")]
+
+    def count_pushes(self, kind):
+        return self._q("SELECT COUNT(*) AS n FROM pushes_sent WHERE kind=?", (kind,))[0]["n"]
+
     def latest_checkin(self, user_id):
         rows = self._q("SELECT * FROM checkins WHERE user_id=? ORDER BY week DESC LIMIT 1", (user_id,))
         return dict(rows[0]) if rows else None
