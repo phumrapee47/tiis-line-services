@@ -1,6 +1,6 @@
 """Project settings. Dates are assumptions for the pilot; override with env vars."""
 import os
-from datetime import date, timedelta
+from datetime import date, datetime, timedelta, timezone
 from pathlib import Path
 
 
@@ -44,8 +44,11 @@ LINE_CHANNEL_TOKEN = os.environ.get("LINE_CHANNEL_TOKEN", "")
 DEMO_TODAY = os.environ.get("DEMO_TODAY", "")
 
 
+THAI_TZ = timezone(timedelta(hours=7))
+
+
 def today() -> date:
-    return date.fromisoformat(DEMO_TODAY) if DEMO_TODAY else date.today()
+    return date.fromisoformat(DEMO_TODAY) if DEMO_TODAY else datetime.now(THAI_TZ).date()
 
 
 def week_no(d: date) -> int:

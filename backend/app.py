@@ -2,6 +2,7 @@
   POST /webhook                     LINE webhook (needs LINE_CHANNEL_SECRET / LINE_CHANNEL_TOKEN)
   POST /api/sim/event               chat simulator: send an event as a user, get the bot replies
   GET  /api/sim/outbox?user_id=..   system-initiated messages waiting for a simulated user
+  GET  /board                       team: browser Triage Board (page is public, data needs the token)
   GET  /api/triage                  team: learners ranked by who to follow up first
   GET  /api/help[?status=..]        team: help requests
   POST /api/help/<id>/status        team: move a request along (accepted/replied/closed)
@@ -12,8 +13,9 @@ import hmac
 import json
 import logging
 from datetime import date
+from pathlib import Path
 
-from flask import Flask, jsonify, request
+from flask import Flask, jsonify, request, send_from_directory
 
 from . import config, line_adapter, scheduler, team, triage
 from .bot import Bot
@@ -47,6 +49,12 @@ def create_app(db=None, bot=None):
         if not hmac.compare_digest(given.encode(), config.TEAM_TOKEN.encode()):
             return jsonify(error="missing or wrong X-Team-Token"), 401
         return None
+
+    @app.get("/board")
+    def board():
+        resp = send_from_directory(Path(__file__).parent / "static", "board.html")
+        resp.headers["Cache-Control"] = "no-store"
+        return resp
 
     @app.get("/health")
     def health():
@@ -97,14 +105,20 @@ def create_app(db=None, bot=None):
 
     @app.get("/api/triage")
     def api_triage():
-        return jsonify(learners=triage.triage(db, config.today()))
+        rows = triage.triage(db, config.today())
+        return jsonify(learners=[{k: v for k, v in r.items() if k != "user_id"} for r in rows])
 
     @app.get("/api/help")
     def api_help():
         status = request.args.get("status")
         if status and status not in team.TRANSITIONS:
             return jsonify(error="invalid status"), 400
-        return jsonify(requests=db.list_help(status))
+        rows = []
+        for r in db.list_help(status):
+            user = db.get_user(r["user_id"])
+            rows.append({**{k: v for k, v in r.items() if k != "user_id"},
+                         "nickname": user["nickname"] if user else None})
+        return jsonify(requests=rows)
 
     @app.post("/api/help/<int:help_id>/status")
     def api_help_status(help_id):
