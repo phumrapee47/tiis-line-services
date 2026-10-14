@@ -23,12 +23,12 @@ def run_scheduled(db, today=None):
             if today == start:  # first day of the week: everyone
                 for u in users:
                     if db.mark_push(u["user_id"], "weekly_start", w):
-                        db.add_outbox(u["user_id"], [M.weekly_start(w)])
+                        db.add_outbox(u["user_id"], [M.weekly_start(w, db.get_task(w))])
                         sent.append((u["user_id"], "weekly_start"))
             if today == start + timedelta(days=2):  # mid-week: only those who haven't reported
                 for u in users:
                     if w not in db.checkin_weeks(u["user_id"]) and db.mark_push(u["user_id"], "nudge", w):
-                        db.add_outbox(u["user_id"], [M.nudge(w)])
+                        db.add_outbox(u["user_id"], [M.nudge(w, db.get_task(w))])
                         sent.append((u["user_id"], "nudge"))
         for kind, due in FOLLOWUPS.items():
             if due <= today <= PROJECT_END:  # catch up if the run was missed
