@@ -15,8 +15,6 @@ services:
         sync: false
       - key: LINE_CHANNEL_TOKEN
         sync: false
-      - key: TEAM_TOKEN
-        generateValue: true
       - key: DATABASE_URL          # Supabase Session pooler URI (contains the DB password): set in the dashboard
         sync: false
       - key: PROJECT_START

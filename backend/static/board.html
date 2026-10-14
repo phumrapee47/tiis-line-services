@@ -3,426 +3,1831 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="robots" content="noindex">
-<title>Triage Board</title>
+<meta name="color-scheme" content="light dark">
+<title>ติดตามผู้เรียน TIIS</title>
 <style>
-  :root {
-    --bg: #f6f7f9; --card: #ffffff; --text: #1d2330; --muted: #5d6677; --line: #dfe3ea;
-    --high: #c0362c; --high-bg: #fdecea; --med: #9a6200; --med-bg: #fff4dc;
-    --ok: #2c7a4b; --ok-bg: #e6f4ec; --accent: #2457d6; --accent-bg: #e8eefc;
+:root {
+  --bg: #F5F6F8; --card: #FFFFFF; --text: #1B2130; --muted: #4B5565; --line: #D5DAE2; --bs: #6B7385;
+  --focus: #1F4FBF; --on-strong: #FFFFFF;
+  --urgent: #A32018; --urgent-bg: #FDECEA;
+  --attn: #7A4A00; --attn-bg: #FFF3D6;
+  --ok: #1B6B3F; --ok-bg: #E6F4EC;
+  --info: #1F4FBF; --info-bg: #E8EEFC;
+  --slate: #475268; --slate-bg: #E9ECF1;
+  --c-ok: #1E9B53; --c-info: #2F6FDE; --c-attn: #C27A00; --c-urgent: #D93A3A; --c-slate: #5B6B86; --c-none: #8A94A6;
+  --shadow: 0 1px 2px rgba(16, 24, 40, .06), 0 2px 8px rgba(16, 24, 40, .05);
+  color-scheme: light;
+  --font: system-ui, "Noto Sans Thai", "Sarabun", "Segoe UI", sans-serif;
+}
+:root[data-theme="dark"] {
+  --bg: #12151B; --card: #1C222C; --text: #E8EBF1; --muted: #A3ACBC; --line: #2E3646; --bs: #7C869A;
+  --focus: #8FB0FF; --on-strong: #12151B;
+  --urgent: #FF8F85; --urgent-bg: #3B1E1D;
+  --attn: #F2B84B; --attn-bg: #3A2E14;
+  --ok: #6FCF97; --ok-bg: #173324;
+  --info: #8FB0FF; --info-bg: #1C2A4D;
+  --slate: #AEB7C9; --slate-bg: #262D3B;
+  --c-ok: #4CC38A; --c-info: #6FA0FF; --c-attn: #F2B84B; --c-urgent: #FF7A70; --c-slate: #8C9AB5; --c-none: #7C869A;
+  --shadow: none;
+  color-scheme: dark;
+}
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) {
+  --bg: #12151B; --card: #1C222C; --text: #E8EBF1; --muted: #A3ACBC; --line: #2E3646; --bs: #7C869A;
+  --focus: #8FB0FF; --on-strong: #12151B;
+  --urgent: #FF8F85; --urgent-bg: #3B1E1D;
+  --attn: #F2B84B; --attn-bg: #3A2E14;
+  --ok: #6FCF97; --ok-bg: #173324;
+  --info: #8FB0FF; --info-bg: #1C2A4D;
+  --slate: #AEB7C9; --slate-bg: #262D3B;
+  --c-ok: #4CC38A; --c-info: #6FA0FF; --c-attn: #F2B84B; --c-urgent: #FF7A70; --c-slate: #8C9AB5; --c-none: #7C869A;
+  --shadow: none;
+  color-scheme: dark;
   }
-  @media (prefers-color-scheme: dark) {
-    :root {
-      --bg: #12151b; --card: #1b2029; --text: #e8ebf1; --muted: #9aa4b5; --line: #2d3442;
-      --high: #ff8a80; --high-bg: #3a1f1d; --med: #f2b84b; --med-bg: #3a2e14;
-      --ok: #6fcf97; --ok-bg: #173324; --accent: #8fb0ff; --accent-bg: #1c2a4d;
-    }
-  }
-  * { box-sizing: border-box; }
-  body { margin: 0; background: var(--bg); color: var(--text);
-         font: 16px/1.5 system-ui, "Noto Sans Thai", "Segoe UI", sans-serif; }
-  .wrap { max-width: 980px; margin: 0 auto; padding: 16px; }
-  header { display: flex; flex-wrap: wrap; gap: 8px 16px; align-items: center; justify-content: space-between; }
-  h1 { font-size: 1.4rem; margin: 0; }
-  h2 { font-size: 1.1rem; margin: 28px 0 10px; }
-  .muted { color: var(--muted); font-size: .9rem; }
-  button, select { font: inherit; color: inherit; }
-  button { cursor: pointer; border: 1px solid var(--line); background: var(--card);
-           border-radius: 8px; padding: 6px 12px; min-height: 36px; }
-  button:hover { border-color: var(--accent); }
-  button:disabled { opacity: .5; cursor: default; }
-  button.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
-  select, input[type=password] { border: 1px solid var(--line); background: var(--card);
-           border-radius: 8px; padding: 6px 10px; min-height: 36px; }
-  .row { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
-  .stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 10px; margin-top: 14px; }
-  .stat { background: var(--card); border: 1px solid var(--line); border-radius: 10px; padding: 10px 14px; }
-  .stat b { display: block; font-size: 1.6rem; line-height: 1.2; }
-  .card { background: var(--card); border: 1px solid var(--line); border-radius: 10px;
-          padding: 12px 14px; margin-bottom: 10px; border-left-width: 5px; }
-  .card.high { border-left-color: var(--high); } .card.medium { border-left-color: var(--med); }
-  .card.normal { border-left-color: var(--ok); }
-  .top { display: flex; flex-wrap: wrap; gap: 6px 10px; align-items: baseline; }
-  .name { font-weight: 600; font-size: 1.05rem; }
-  .badge { border-radius: 999px; padding: 1px 10px; font-size: .8rem; font-weight: 600; }
-  .badge.high { background: var(--high-bg); color: var(--high); }
-  .badge.medium { background: var(--med-bg); color: var(--med); }
-  .badge.normal { background: var(--ok-bg); color: var(--ok); }
-  .badge.info { background: var(--accent-bg); color: var(--accent); }
-  ul { margin: 6px 0 0; padding-left: 20px; }
-  .detail { margin: 6px 0; white-space: pre-wrap; overflow-wrap: anywhere; }
-  .actions { display: flex; flex-wrap: wrap; gap: 8px; margin-top: 8px; }
-  .task input[type=text], .task textarea { width: 100%; border: 1px solid var(--line); background: var(--bg);
-           border-radius: 8px; padding: 8px 10px; font: inherit; color: inherit; margin-top: 6px; }
-  .task textarea { min-height: 64px; resize: vertical; }
-  .task .saved { color: var(--ok); font-size: .9rem; }
-  .bar { height: 10px; background: var(--line); border-radius: 6px; overflow: hidden; }
-  .bar > i { display: block; height: 100%; background: var(--accent); }
-  .barrow { display: grid; grid-template-columns: 8.5em 1fr 4.5em; gap: 10px; align-items: center; margin: 6px 0; }
-  .barrow .n { text-align: right; font-variant-numeric: tabular-nums; }
-  .stat.alert { border-color: var(--high); background: var(--high-bg); }
-  .stat small { display: block; color: var(--muted); font-size: .8rem; }
-  .empty { background: var(--card); border: 1px dashed var(--line); border-radius: 10px;
-           padding: 18px; text-align: center; color: var(--muted); }
-  .banner { margin-top: 12px; padding: 10px 14px; border-radius: 10px; background: var(--high-bg); color: var(--high); }
-  #login { max-width: 420px; margin: 12vh auto; background: var(--card); border: 1px solid var(--line);
-           border-radius: 12px; padding: 20px; }
-  #login input { width: 100%; margin: 10px 0; }
-  [hidden] { display: none !important; }
+}
+* { box-sizing: border-box; }
+html { -webkit-text-size-adjust: 100%; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 400 16px/1.6 var(--font); overflow-wrap: anywhere; }
+[hidden] { display: none !important; }
+h1, h2, h3, p, ul, ol, table { margin: 0; }
+ul, ol { padding: 0; list-style: none; }
+h1 { font-size: 20px; font-weight: 700; line-height: 1.3; }
+h2 { font-size: 24px; font-weight: 700; line-height: 1.3; }
+h3 { font-size: 18px; font-weight: 700; line-height: 1.4; }
+.small { font-size: 14px; line-height: 1.5; }
+.muted { color: var(--muted); }
+.strong { font-weight: 700; }
+.sr { position: absolute; width: 1px; height: 1px; margin: -1px; padding: 0; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; border: 0; }
+.defs { position: absolute; width: 0; height: 0; overflow: hidden; }
+
+/* focus */
+:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+[tabindex="-1"]:focus { outline: none; }
+h2[tabindex="-1"]:focus-visible, .card[tabindex="-1"]:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
+
+/* skip link */
+.skip { position: absolute; left: 8px; top: -100px; z-index: 50; background: var(--card); color: var(--text); border: 2px solid var(--focus); border-radius: 8px; padding: 10px 14px; min-height: 44px; }
+.skip:focus { top: 8px; }
+
+.wrap { max-width: 960px; margin: 0 auto; padding: 0 16px; }
+
+/* buttons */
+.btn { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; min-width: 44px; padding: 8px 16px; border-radius: 8px;
+  border: 1.5px solid var(--bs); background: var(--card); color: var(--text); font: 600 16px/1.4 var(--font); cursor: pointer; text-decoration: none; text-align: center;
+  transition: background-color .12s, border-color .12s; }
+.btn:hover { background: var(--slate-bg); }
+.btn.primary { background: var(--info); border-color: var(--info); color: var(--on-strong); }
+.btn.primary:hover { filter: brightness(1.08); }
+.btn.danger { border-color: var(--urgent); color: var(--urgent); }
+.btn.danger:hover { background: var(--urgent-bg); }
+.btn.danger-solid { background: var(--urgent); border-color: var(--urgent); color: var(--on-strong); }
+.btn.danger-solid:hover { filter: brightness(1.08); }
+.btn.block { width: 100%; }
+.btn:disabled, .btn[aria-disabled="true"] { opacity: .6; cursor: default; filter: none; }
+.btn.small { font-size: 14px; }
+
+/* form */
+label { font-weight: 600; }
+input[type=text], input[type=password], input[type=search], select, textarea {
+  display: block; width: 100%; min-height: 48px; padding: 10px 12px; border-radius: 8px; border: 1.5px solid var(--bs);
+  background: var(--card); color: var(--text); font: 400 16px/1.5 var(--font); }
+textarea { min-height: 96px; resize: vertical; }
+input::placeholder { color: var(--muted); opacity: 1; }
+.field { display: grid; gap: 6px; }
+.check { display: flex; align-items: center; gap: 12px; min-height: 44px; cursor: pointer; font-weight: 400; }
+.check input { width: 24px; height: 24px; margin: 0; flex: none; accent-color: var(--info); }
+
+/* login */
+
+/* header */
+.top { padding: 12px 0 8px; display: grid; gap: 4px; }
+.top-row { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.top-row2 { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
+.top .btn { padding: 6px 14px; }
+
+/* banner */
+.banner { display: flex; align-items: flex-start; gap: 10px; flex-wrap: wrap; border-radius: 8px; padding: 10px 12px; margin: 8px 0; }
+.banner.err { background: var(--urgent-bg); border: 1.5px solid var(--urgent); }
+.banner.inf { background: var(--info-bg); border: 1.5px solid var(--info); }
+.banner .msg { flex: 1 1 200px; min-width: 0; }
+.mark { display: inline-flex; align-items: center; justify-content: center; flex: none; width: 22px; height: 22px; border-radius: 50%; font: 700 14px/1 var(--font); }
+.mark.bad { background: var(--urgent); color: var(--on-strong); }
+.mark.good { background: var(--ok); color: var(--on-strong); }
+
+/* nav : bottom bar on small screens */
+.nav { position: fixed; left: 0; right: 0; bottom: 0; z-index: 20; background: var(--card); border-top: 1px solid var(--line);
+  padding-bottom: env(safe-area-inset-bottom, 0); }
+.nav ul { display: flex; max-width: 960px; margin: 0 auto; }
+.nav li { flex: 1 1 0; min-width: 0; }
+.nav a { position: relative; display: flex; flex-direction: column; align-items: center; justify-content: center; text-align: center; gap: 2px;
+  min-height: 56px; height: 64px; padding: 4px 2px; color: var(--text); text-decoration: none; font-size: 14px; line-height: 1.3; border-top: 3px solid transparent;
+  transition: background-color .12s, border-color .12s; }
+.nav a:hover { background: var(--slate-bg); }
+.nav a[aria-current="page"] { font-weight: 700; background: var(--info-bg); border-top-color: var(--info); color: var(--info); }
+.nav .tl-full { position: absolute; width: 1px; height: 1px; margin: -1px; overflow: hidden; clip: rect(0 0 0 0); white-space: nowrap; }
+.badge-n { display: inline-block; min-width: 22px; padding: 0 6px; border-radius: 11px; background: var(--urgent); color: var(--on-strong); font: 700 13px/20px var(--font); text-align: center; }
+.badge-n.attn { background: var(--attn); }
+main { padding: 8px 0 88px; }
+@media (max-height: 480px) { .nav a { height: 52px; min-height: 44px; } main { padding-bottom: 72px; } }
+@media (min-width: 768px) {
+  .wrap { padding: 0 24px; }
+  .nav { position: sticky; top: 0; bottom: auto; border-top: 0; border-bottom: 1px solid var(--line); padding-bottom: 0; }
+  .nav a { flex-direction: row; height: 56px; border-top: 0; border-bottom: 3px solid transparent; font-size: 16px; padding: 4px 12px; }
+  .nav a[aria-current="page"] { border-bottom-color: var(--info); }
+  .nav .tl-short { display: none; }
+  .nav .tl-full { position: static; width: auto; height: auto; margin: 0; overflow: visible; clip: auto; white-space: normal; }
+  main { padding-bottom: 40px; }
+}
+
+/* panels */
+.panel { display: grid; gap: 16px; padding-top: 12px; align-content: start; }
+.panel > h2 { scroll-margin-top: 72px; }
+.card { background: var(--card); border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 8px; min-width: 0; border-left-width: 6px; }
+.card.lv-high, .card.st-overdue { border-left-color: var(--urgent); }
+.card.lv-medium, .card.st-waiting { border-left-color: var(--attn); border-left-width: 4px; }
+.card.lv-normal { border-left-color: var(--line); border-left-width: 2px; color: var(--muted); }
+.card.lv-normal h3 { color: var(--text); }
+.card.st-waiting, .card.st-accepted, .card.st-replied, .card.st-closed { border-left-width: 6px; }
+.card.st-accepted { border-left-color: var(--info); }
+.card.st-replied { border-left-color: var(--ok); }
+.card.st-closed { border-left-color: var(--slate); border-left-width: 3px; }
+.card.plain { border-left-width: 1px; }
+.card.cardnr { gap: 4px; padding: 12px 16px; border-left-width: 4px; }
+.card.nr-urgent { border-left-color: var(--urgent); }
+.card.nr-attn { border-left-color: var(--attn); }
+.list { display: grid; gap: 12px; }
+.row { display: flex; align-items: flex-start; justify-content: space-between; gap: 8px 12px; flex-wrap: wrap; }
+.row > h3 { flex: 1 1 140px; min-width: 0; }
+.chip { display: inline-block; padding: 1px 12px; border-radius: 999px; font: 600 14px/1.5 var(--font); border: 1px solid transparent; white-space: normal; }
+.chip.urgent { background: var(--urgent-bg); color: var(--urgent); border-color: var(--urgent); }
+.chip.attn { background: var(--attn-bg); color: var(--attn); border-color: var(--attn); }
+.chip.ok { background: var(--ok-bg); color: var(--ok); border-color: var(--ok); }
+.chip.info { background: var(--info-bg); color: var(--info); border-color: var(--info); }
+.chip.slate { background: var(--slate-bg); color: var(--slate); border-color: var(--slate); }
+.chip.none { background: var(--card); color: var(--text); border: 1.5px dashed var(--bs); }
+.chip.cat { background: var(--line); color: var(--text); }
+.chip.solid { background: var(--urgent); color: var(--on-strong); border-color: var(--urgent); }
+.reasons { display: grid; gap: 4px; padding-left: 20px; list-style: disc; }
+.reasons li::marker { color: var(--muted); }
+.empty { border: 1.5px dashed var(--line); border-radius: 12px; padding: 24px 16px; text-align: center; display: grid; gap: 8px; justify-items: center; background: var(--card); }
+.empty .t { font-weight: 700; }
+.err-card { border: 2px solid var(--urgent); background: var(--urgent-bg); border-radius: 12px; padding: 16px; display: grid; gap: 12px; justify-items: start; }
+.loading-box { color: var(--muted); padding: 12px 0; }
+.skeleton { height: 72px; border-radius: 12px; background: var(--line); }
+
+/* home */
+.home-grid { display: grid; gap: 12px; }
+.home-card { display: grid; grid-template-columns: auto 1fr auto; align-items: center; gap: 4px 16px; min-height: 88px; padding: 14px 16px;
+  border-radius: 12px; border: 1px solid var(--line); background: var(--card); color: var(--text); text-decoration: none;
+  transition: background-color .12s, border-color .12s; }
+.home-card .num { font-size: 44px; font-weight: 700; line-height: 1.2; font-variant-numeric: tabular-nums; text-align: center; min-width: 48px; }
+.home-card .unit { display: block; font-size: 14px; font-weight: 400; line-height: 1.3; }
+.home-card .body { min-width: 0; display: grid; gap: 2px; }
+.home-card .arrow { font-size: 24px; font-weight: 700; }
+.home-card.zero .num { color: var(--muted); }
+.home-card.tone-urgent { background: var(--urgent-bg); border: 2px solid var(--urgent); }
+.home-card.tone-urgent .num, .home-card.tone-urgent .arrow { color: var(--urgent); }
+.home-card.tone-attn { background: var(--attn-bg); border: 2px solid var(--attn); }
+.home-card.tone-attn .num, .home-card.tone-attn .arrow { color: var(--attn); }
+.home-card:hover { filter: brightness(.97); }
+.allclear { border: 2px solid var(--ok); background: var(--ok-bg); border-radius: 12px; padding: 20px 16px; display: grid; gap: 12px; }
+.allclear .head { display: flex; gap: 10px; align-items: center; }
+.allclear .btns { display: flex; gap: 12px; flex-wrap: wrap; }
+.check-mark { flex: none; }
+@media (min-width: 768px) {
+  .home-grid { grid-template-columns: repeat(3, 1fr); }
+  .home-card { grid-template-columns: 1fr; text-align: left; justify-items: start; align-content: start; padding: 20px; }
+  .home-card .num { font-size: 52px; text-align: left; }
+  .home-card .arrow { display: none; }
+}
+
+/* learners */
+.sumline { display: flex; gap: 8px 16px; flex-wrap: wrap; font-weight: 600; }
+.tools { display: grid; gap: 8px; }
+.groupHead { font-size: 18px; font-weight: 700; padding-top: 8px; }
+.sub { font-size: 14px; color: var(--muted); line-height: 1.5; }
+
+/* help */
+.detail { white-space: pre-wrap; overflow-wrap: anywhere; }
+.detail.clamp { display: -webkit-box; -webkit-line-clamp: 5; line-clamp: 5; -webkit-box-orient: vertical; overflow: hidden; }
+.overdue-bar { margin: -16px -16px 4px -16px; padding: 8px 16px; background: var(--urgent); color: var(--on-strong); border-radius: 6px 11px 0 0; font-weight: 700; display: flex; gap: 8px; align-items: flex-start; }
+.overdue-bar .mark { background: var(--on-strong); color: var(--urgent); }
+.next { font-size: 14px; font-weight: 700; }
+.actions { display: grid; gap: 12px; }
+.actions .primary-row { display: grid; gap: 12px; }
+.closerow { display: flex; justify-content: flex-end; border-top: 1px solid var(--line); padding-top: 16px; margin-top: 4px; }
+.confirm { border: 2px solid var(--urgent); background: var(--urgent-bg); border-radius: 8px; padding: 16px; display: grid; gap: 8px; }
+.confirm .ttl { display: flex; gap: 10px; align-items: center; font-weight: 700; }
+.confirm .two { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 4px; }
+.cerr { display: flex; gap: 8px; align-items: flex-start; color: var(--urgent); font-weight: 600; }
+.tbtn { background: none; border: 0; padding: 0 0 0 0; min-height: 44px; color: var(--info); font: 600 14px/1.5 var(--font); text-decoration: underline; cursor: pointer; justify-self: start; }
+.note { font-size: 14px; color: var(--muted); }
+@media (min-width: 768px) { .actions .primary-row .btn { justify-self: start; min-width: 160px; } }
+
+/* accordion */
+.acc { border: 1px solid var(--line); border-radius: 12px; background: var(--card); overflow: hidden; }
+.acc > h3 { font-size: 18px; }
+.acc-btn { display: flex; align-items: center; gap: 12px; width: 100%; min-height: 56px; padding: 8px 16px; border: 0; background: transparent; color: var(--text);
+  font: 700 18px/1.4 var(--font); text-align: left; cursor: pointer; transition: background-color .12s; }
+.acc-btn:hover { background: var(--slate-bg); }
+.acc-btn .chev { flex: none; font-size: 16px; width: 18px; text-align: center; }
+.acc-btn .ttl { flex: 1 1 auto; min-width: 0; display: grid; gap: 2px; }
+.acc-btn .sum { font-size: 14px; font-weight: 400; color: var(--muted); line-height: 1.5; }
+.acc-body { padding: 4px 16px 16px; display: grid; gap: 12px; border-top: 1px solid var(--line); }
+.acc-body[hidden] { display: none; }
+
+/* overview */
+.weekbar { display: grid; gap: 8px; }
+.weekrow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+.weekrow select { flex: 1 1 200px; width: auto; min-width: 0; }
+.chartcard { border: 1px solid var(--line); border-radius: 12px; padding: 16px; display: grid; gap: 12px; background: var(--card); min-width: 0; }
+.chartcard > h3 { font-size: 18px; }
+.big { font-size: 24px; font-weight: 700; line-height: 1.4; }
+.cg { display: grid; gap: 16px; }
+@media (min-width: 900px) { .cg.two { grid-template-columns: 1fr 1fr; align-items: start; } }
+.chart-svg { display: block; width: 100%; max-width: 520px; height: auto; }
+.donutwrap { display: grid; gap: 12px; justify-items: center; }
+@media (min-width: 480px) { .donutwrap { grid-template-columns: auto 1fr; justify-items: start; align-items: center; gap: 24px; } }
+.donut { width: 140px; height: 140px; }
+@media (min-width: 768px) { .donut { width: 160px; height: 160px; } }
+.legend { width: 100%; border-collapse: collapse; font-size: 16px; font-variant-numeric: tabular-nums; }
+.legend th, .legend td { padding: 6px 4px; border-top: 1px solid var(--line); vertical-align: top; text-align: left; }
+.legend th { font-weight: 400; }
+.legend td.pc { text-align: right; white-space: nowrap; }
+.legend tr.hot th, .legend tr.hot td { font-weight: 700; }
+.legend .sw { display: inline-flex; align-items: center; gap: 8px; }
+.legend .sw svg { flex: none; width: 20px; height: 20px; }
+.track { fill: var(--line); }
+.donut-pct { fill: var(--text); font: 700 30px var(--font); }
+.ranklist { display: grid; gap: 12px; }
+.rank-top { display: flex; justify-content: space-between; gap: 4px 12px; flex-wrap: wrap; }
+.rank-top > span:first-child { flex: 1 1 140px; min-width: 0; }
+.rank-top > span:last-child { font-variant-numeric: tabular-nums; }
+.hotbox { border-left: 6px solid var(--urgent); background: var(--urgent-bg); border-radius: 8px; padding: 12px 16px; display: grid; gap: 4px; justify-items: start; }
+.hotbox.zero { border-left-color: var(--ok); background: var(--ok-bg); }
+.hotbox .big { color: var(--urgent); }
+.hotbox.zero .big { color: var(--ok); }
+.bartitle { font-weight: 700; }
+.acc-btn[aria-expanded="true"] .chev { transform: rotate(90deg); }
+.acc-btn .chev { transition: transform .12s; }
+.trunc { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.baseline { stroke: var(--bs); stroke-width: 1.5; }
+.sw { display: inline-flex; align-items: center; gap: 8px; }
+.legendline { display: flex; gap: 16px; flex-wrap: wrap; }
+.list > .btn:not(.block), .chartcard > .btn, .wrapbtn { justify-self: start; }
+.sep { height: 1px; background: var(--line); border: 0; margin: 4px 0; }
+
+/* settings */
+.exportlist { display: grid; gap: 12px; }
+.exrow { display: grid; gap: 8px; align-items: center; padding: 12px 16px; border: 1px solid var(--line); border-radius: 12px; background: var(--card); }
+.exrow .n { font-weight: 600; }
+@media (min-width: 600px) { .exrow { grid-template-columns: 1fr auto; } }
+.status { display: flex; gap: 8px; align-items: flex-start; min-height: 24px; }
+.status.good { color: var(--ok); font-weight: 600; }
+.status.bad { color: var(--urgent); font-weight: 600; }
+.counter { font-size: 14px; color: var(--muted); text-align: right; }
+.formgrid { display: grid; gap: 12px; }
+.saverow { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; }
+
+/* ===== dashboard shell: sidebar on wide screens, KPI tiles and a card grid for the weekly overview ===== */
+.side { display: contents; }
+.content { min-width: 0; }
+.side .top { padding: 12px 16px 8px; }
+@media (min-width: 768px) { .side .top { padding: 12px 24px 8px; } }
+@media (min-width: 1000px) {
+  #appView { display: grid; grid-template-columns: 264px minmax(0, 1fr); min-height: 100vh; align-items: start; }
+  .side { display: flex; flex-direction: column; gap: 20px; position: sticky; top: 0; height: 100vh; overflow-y: auto;
+    padding: 24px 16px; background: var(--card); border-right: 1px solid var(--line); }
+  .side .top { padding: 0 8px; gap: 8px; }
+  .side .top h1 { font-size: 22px; }
+  .side .top-row2 { display: grid; gap: 8px; justify-content: stretch; }
+  .nav { position: static; background: transparent; border: 0; padding: 0; }
+  .nav ul { flex-direction: column; gap: 4px; max-width: none; margin: 0; }
+  .nav li { flex: none; }
+  .nav a { flex-direction: row; justify-content: flex-start; gap: 10px; height: auto; min-height: 48px; padding: 8px 14px; border: 0;
+    border-radius: 10px; font-size: 16px; text-align: left; }
+  .nav a[aria-current="page"] { border: 0; background: var(--info-bg); color: var(--info); }
+  .nav a .badge-n { margin-left: auto; }
+  .content .wrap { max-width: 1320px; padding: 0 32px; }
+  main { padding: 24px 0 56px; }
+  .panel { padding-top: 0; }
+}
+
+.ovhead { display: grid; gap: 12px; }
+@media (min-width: 720px) { .ovhead { grid-template-columns: 1fr auto; align-items: end; } }
+.ovhead .weekbar { min-width: 260px; }
+.dash { display: grid; gap: 16px; }
+.kpis { display: grid; gap: 12px; grid-template-columns: repeat(2, minmax(0, 1fr)); }
+.kpis .kpi:last-child:nth-child(odd) { grid-column: 1 / -1; }
+@media (min-width: 720px) { .kpis { grid-template-columns: repeat(auto-fit, minmax(144px, 1fr)); } .kpis .kpi:last-child:nth-child(odd) { grid-column: auto; } }
+.kpi { background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 14px 16px; display: grid; gap: 4px; align-content: start;
+  min-width: 0; box-shadow: var(--shadow); }
+.kpi .k-label { font-size: 14px; color: var(--muted); line-height: 1.4; }
+.kpi .k-val { font-size: 32px; font-weight: 700; line-height: 1.2; }
+.kpi .k-sub { font-size: 14px; color: var(--muted); line-height: 1.4; }
+.kpi.tone-urgent { background: var(--urgent-bg); border-color: var(--urgent); }
+.kpi.tone-urgent .k-val { color: var(--urgent); }
+.kpi.tone-attn { background: var(--attn-bg); border-color: var(--attn); }
+.kpi.tone-attn .k-val { color: var(--attn); }
+.meter { display: block; width: 100%; height: 8px; margin: 2px 0; }
+.meter .fillbar { fill: var(--info); }
+.dgrid { display: grid; gap: 16px; grid-template-columns: minmax(0, 1fr); grid-auto-flow: dense; }
+@media (min-width: 720px) { .dgrid { grid-template-columns: repeat(2, minmax(0, 1fr)); } .dgrid > .span2 { grid-column: span 2; } }
+@media (min-width: 1180px) { .dgrid { grid-template-columns: repeat(3, minmax(0, 1fr)); } }
+.dgrid > .span-all { grid-column: 1 / -1; }
+.dgrid .chartcard, .dash > .chartcard { box-shadow: var(--shadow); border-radius: 14px; padding: 18px; align-content: start; }
+.dgrid .chartcard > h3 { font-size: 16px; }
+.dgrid .donutwrap { grid-template-columns: 1fr; justify-items: center; text-align: center; }
+.dgrid .donutwrap .big { font-size: 20px; }
+.dgrid .cg.two { grid-template-columns: 1fr; }
+@media (min-width: 720px) { .dgrid > .span2 .cg.two { grid-template-columns: 1fr 1fr; } }
+.chart-svg.wide { max-width: none; }
+.gridline { stroke: var(--line); stroke-width: 1; }
+.vlabel { fill: var(--text); font: 600 13px var(--font); }
+.xlabel, .ylabel { fill: var(--muted); font: 13px var(--font); }
+details.tbl > summary { display: flex; align-items: center; min-height: 44px; cursor: pointer; font-weight: 600; color: var(--info); }
+details.tbl[open] > summary { margin-bottom: 4px; }
+
+/* project start: status strip and the editor in Settings */
+.pstrip { display: grid; gap: 4px; border: 1px solid var(--info); background: var(--info-bg); border-radius: 12px; padding: 12px 16px; }
+.pstrip.tone-attn { border-color: var(--attn); background: var(--attn-bg); }
+.pstrip .strong { font-weight: 700; }
+.startbox { display: grid; gap: 12px; background: var(--card); border: 1px solid var(--line); border-radius: 14px; padding: 18px; box-shadow: var(--shadow); }
+.startbox .rowfields { display: flex; gap: 12px; align-items: end; flex-wrap: wrap; }
+.startbox .field { flex: 1 1 220px; max-width: 320px; }
+.startbox input[type="date"] { min-height: 48px; }
+.startbox .warnline { display: flex; gap: 8px; align-items: flex-start; color: var(--attn); font-weight: 600; }
+
+/* chart colours: solid fills, one colour = one meaning on every chart (labels and numbers still sit next to every mark) */
+.k-ok .base { fill: var(--c-ok); } .k-info .base { fill: var(--c-info); } .k-attn .base { fill: var(--c-attn); }
+.k-urgent .base { fill: var(--c-urgent); } .k-slate .base { fill: var(--c-slate); } .k-none .base { fill: var(--c-none); }
+.arc { fill: none; }
+.a-ok { stroke: var(--c-ok); } .a-attn { stroke: var(--c-attn); } .a-info { stroke: var(--c-info); } .a-none { stroke: var(--c-none); }
+.meter .fillbar { fill: var(--c-info); }
+
+/* theme switch (sidebar footer on wide screens, header on small ones) */
+.themeset { display: grid; gap: 8px; }
+.themeset .lbl { font-size: 14px; color: var(--muted); }
+.seg { display: grid; grid-template-columns: 1fr 1fr; border: 1.5px solid var(--bs); border-radius: 10px; overflow: hidden; }
+.seg button { min-height: 44px; padding: 6px 12px; border: 0; background: var(--card); color: var(--text); font: 600 15px/1.4 var(--font); cursor: pointer; }
+.seg button + button { border-left: 1.5px solid var(--bs); }
+.seg button[aria-pressed="true"] { background: var(--info); color: var(--on-strong); }
+.seg button:hover:not([aria-pressed="true"]) { background: var(--slate-bg); }
+.sidefoot { display: none; }
+.themetop { margin-top: 4px; }
+@media (min-width: 1000px) {
+  .sidefoot { display: grid; gap: 8px; margin-top: auto; padding: 16px 8px 0; border-top: 1px solid var(--line); }
+  .themetop { display: none; }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  * { transition: none !important; animation: none !important; scroll-behavior: auto !important; }
+}
 </style>
 </head>
 <body>
-<div class="wrap">
+<a class="skip" id="skip" href="#main">ข้ามไปเนื้อหาหลัก</a>
 
-  <section id="login" hidden>
-    <h1>Triage Board</h1>
-    <p class="muted">สำหรับทีมงานเท่านั้น กรอกรหัสทีม (TEAM_TOKEN) เพื่อดูข้อมูลผู้เรียน</p>
-    <form id="loginForm">
-      <label for="token" class="muted">รหัสทีม</label>
-      <input id="token" type="password" autocomplete="off" required>
-      <div id="loginError" class="banner" hidden></div>
-      <button class="primary" type="submit">เข้าสู่ระบบ</button>
-    </form>
-  </section>
-
-  <main id="app" hidden>
-    <header>
-      <div>
-        <h1>Triage Board</h1>
-        <div class="muted" id="updated">กำลังโหลด...</div>
+<div id="appView">
+  <aside class="side">
+    <header class="top">
+      <div class="top-row">
+        <h1>ติดตามผู้เรียน TIIS</h1>
       </div>
-      <div class="row">
-        <button id="refresh" type="button">รีเฟรช</button>
-        <button id="logout" type="button">ออกจากระบบ</button>
+      <div class="top-row2">
+        <span id="updated" class="small muted">กำลังโหลดข้อมูล...</span>
+        <button id="refreshBtn" class="btn" type="button">รีเฟรช</button>
+      </div>
+      <div class="themetop seg" role="group" aria-label="โหมดสี">
+        <button type="button" data-theme-set="light" aria-pressed="false">สว่าง</button>
+        <button type="button" data-theme-set="dark" aria-pressed="false">มืด</button>
       </div>
     </header>
-    <div id="error" class="banner" hidden></div>
-    <div class="stats" id="stats"></div>
-
-    <h2>รายงานสัปดาห์</h2>
-    <div class="row" style="margin-bottom:10px">
-      <label class="muted" for="reportWeek">สัปดาห์</label>
-      <select id="reportWeek"></select>
-      <span class="muted" style="margin-left:auto">ส่งออก</span>
-      <select id="exportKind" aria-label="ประเภทไฟล์ CSV">
-        <option value="learners">ผู้เรียนและระดับความเสี่ยง</option>
-        <option value="checkins">รายงานความคืบหน้า</option>
-        <option value="help">เรื่องขอความช่วยเหลือ</option>
-        <option value="followups">ผลติดตาม 14 วัน</option>
-      </select>
-      <button id="exportBtn" type="button">ดาวน์โหลด CSV</button>
+    <nav class="nav" aria-label="เมนูหลัก"><ul id="navList"></ul></nav>
+    <div class="sidefoot" aria-label="ตั้งค่า board">
+      <div class="themeset">
+        <div class="seg" role="group" aria-label="โหมดสี">
+          <button type="button" data-theme-set="light" aria-pressed="false">สว่าง</button>
+          <button type="button" data-theme-set="dark" aria-pressed="false">มืด</button>
+        </div>
+      </div>
     </div>
-    <div id="report"></div>
+  </aside>
 
-    <h2>ผู้เรียนที่ควรตามก่อน</h2>
-    <div class="row" style="margin-bottom:10px">
-      <label class="row muted"><input type="checkbox" id="hideNormal" checked> ซ่อนผู้ที่ปกติ</label>
+  <div class="content">
+    <div class="wrap">
+      <div id="banner" class="banner err" role="alert" hidden>
+        <span class="mark bad" aria-hidden="true">!</span>
+        <span class="msg"><strong>เกิดข้อผิดพลาด:</strong> <span id="bannerText"></span></span>
+        <button id="bannerRetry" class="btn small" type="button">ลองใหม่</button>
+      </div>
     </div>
-    <div id="learners"></div>
 
-    <h2>เรื่องขอความช่วยเหลือ</h2>
-    <div class="row" style="margin-bottom:10px">
-      <label class="muted" for="helpFilter">แสดง</label>
-      <select id="helpFilter">
-        <option value="open">ที่ยังไม่ปิด</option>
-        <option value="waiting">รอทีมรับเรื่อง</option>
-        <option value="accepted">ทีมรับเรื่องแล้ว</option>
-        <option value="replied">ทีมตอบแล้ว</option>
-        <option value="closed">ปิดเรื่อง</option>
-        <option value="all">ทั้งหมด</option>
-      </select>
-      <span class="muted">เมื่อเปลี่ยนสถานะ ผู้เรียนจะได้รับแจ้งทาง LINE</span>
+    <div class="wrap">
+    <main id="main" tabindex="-1" aria-busy="true">
+      <div id="firstErr"></div>
+
+      <section class="panel" id="p-home" aria-labelledby="h-home">
+        <h2 id="h-home" tabindex="-1">วันนี้ต้องทำอะไร</h2>
+        <div id="homeBody"></div>
+      </section>
+
+      <section class="panel" id="p-learners" aria-labelledby="h-learners" hidden>
+        <h2 id="h-learners" tabindex="-1">ผู้เรียนที่ต้องตาม</h2>
+        <div id="lrnSummary" class="sumline"></div>
+        <div class="tools">
+          <div class="field">
+            <label for="lrnSearch">ค้นหาชื่อเล่นหรือชื่อ LINE</label>
+            <input id="lrnSearch" type="search" placeholder="พิมพ์ชื่อ" autocomplete="off">
+          </div>
+          <label class="check"><input id="lrnHide" type="checkbox" checked><span>ซ่อนผู้ที่ปกติ</span></label>
+          <p id="lrnCount" class="small muted"></p>
+        </div>
+        <div id="lrnList" class="list"></div>
+        <p class="note">ระดับที่ต้องตามมาจากกฎเริ่มต้นที่ยังไม่ได้ทดสอบกับผู้เรียนจริง ใช้ประกอบดุลยพินิจของทีมเท่านั้น</p>
+      </section>
+
+      <section class="panel" id="p-help" aria-labelledby="h-help" hidden>
+        <h2 id="h-help" tabindex="-1">เรื่องขอความช่วยเหลือ</h2>
+        <div class="field">
+          <label for="helpFilter">แสดง</label>
+          <select id="helpFilter"></select>
+        </div>
+        <p id="helpNow" class="strong"></p>
+        <p class="note">ทุกครั้งที่ทีมเปลี่ยนสถานะเรื่อง ระบบจะส่งข้อความแจ้งผู้เรียนทาง LINE (หากส่งไม่สำเร็จจะลองใหม่ให้เอง)</p>
+        <div id="helpList" class="list"></div>
+      </section>
+
+      <section class="panel" id="p-overview" aria-labelledby="h-overview" hidden>
+        <div class="ovhead">
+          <h2 id="h-overview" tabindex="-1">ภาพรวมรายสัปดาห์</h2>
+          <div class="weekbar">
+            <label for="weekSelect">ดูรายงานของสัปดาห์</label>
+            <div class="weekrow">
+              <select id="weekSelect"></select>
+              <span id="weekChip" class="chip slate" hidden></span>
+            </div>
+            <p id="weekLoading" class="small muted" hidden></p>
+          </div>
+        </div>
+        <p id="regLine" class="small muted"></p>
+        <div id="ovBody" class="dash"></div>
+      </section>
+
+      <section class="panel" id="p-settings" aria-labelledby="h-settings" hidden>
+        <h2 id="h-settings" tabindex="-1">ตั้งค่างานและส่งออก</h2>
+        <section id="startBox" class="startbox" aria-labelledby="h-start"></section>
+        <div class="formgrid">
+          <h3>ดาวน์โหลดข้อมูล</h3>
+          <p class="small muted">ไฟล์ CSV เปิดได้ด้วย Excel หรือ Google Sheets</p>
+        </div>
+        <div id="exportList" class="exportlist"></div>
+        <div id="exportStatus" class="status" role="status"></div>
+        <div class="formgrid">
+          <h3>แก้งานรายสัปดาห์</h3>
+          <p class="small muted">หัวข้อนี้แสดงในคำถามรายงานความคืบหน้าและข้อความเริ่มสัปดาห์ ใช้ชุดเดียวกันทุกเป้าหมาย แก้แล้วมีผลกับการรายงานครั้งถัดไป (รายงานที่ส่งไปแล้วยังเก็บหัวข้อเดิมไว้)</p>
+        </div>
+        <div id="taskList" class="list"></div>
+      </section>
+    </main>
     </div>
-    <div id="helps"></div>
+  </div>
 
-    <h2>งานรายสัปดาห์ (ทีมกำหนด)</h2>
-    <p class="muted">หัวข้อนี้แสดงในคำถามรายงานความคืบหน้าและข้อความเริ่มสัปดาห์ ใช้ชุดเดียวกันทุกเป้าหมาย
-      แก้แล้วมีผลกับการรายงานครั้งถัดไป (รายงานที่ส่งไปแล้วยังเก็บหัวข้อเดิมไว้)</p>
-    <div id="tasks"></div>
-    <p class="muted">คะแนนความเสี่ยงมาจากกฎที่ตั้งไว้เป็นค่าเริ่มต้น ยังไม่ได้ทดสอบกับผู้เรียนจริง ใช้ประกอบดุลยพินิจของทีมเท่านั้น</p>
-  </main>
+  <div id="live" class="sr" role="status" aria-live="polite"></div>
 </div>
 
 <script>
-const LABEL = {
-  progress: { done: "ทำเสร็จแล้ว", doing: "กำลังทำ", not_started: "ยังไม่ได้เริ่ม", stuck: "ติดอยู่" },
-  cat: { content: "เนื้อหา/ชิ้นงาน", tool: "เครื่องมือ/เทคนิค", confidence: "ไม่มั่นใจ/กำลังใจ", other: "เรื่องอื่นๆ" },
-  status: { waiting: "รอทีมรับเรื่อง", accepted: "ทีมรับเรื่องแล้ว", replied: "ทีมตอบแล้ว", closed: "ปิดเรื่อง" },
-  level: { high: "สูง", medium: "กลาง", normal: "ปกติ" },
-};
-const NEXT = {
-  waiting: [["accepted", "รับเรื่อง"], ["closed", "ปิดเรื่อง"]],
-  accepted: [["replied", "ตอบแล้ว"], ["closed", "ปิดเรื่อง"]],
-  replied: [["accepted", "เปิดใหม่"], ["closed", "ปิดเรื่อง"]],
-  closed: [],
-};
-const STATUS_ORDER = { waiting: 0, accepted: 1, replied: 2, closed: 3 };
-const $ = (id) => document.getElementById(id);
-let learners = [], helps = [], tasks = [], report = null, reportWeek = null, currentWeek = 0,
-    tasksDirty = false, timer = null;
+"use strict";
 
-// Build DOM with textContent only: nicknames and help details are user-typed (no innerHTML).
-function el(tag, props = {}, ...kids) {
-  const n = document.createElement(tag);
-  for (const [k, v] of Object.entries(props)) {
-    if (k === "class") n.className = v; else if (k === "text") n.textContent = v; else n[k] = v;
+/* ---- colour mode: follows the system until the user picks one; the pick is remembered in this browser ---- */
+const THEME_KEY = "boardTheme";
+(function applySavedTheme() {
+  try {
+    const v = localStorage.getItem(THEME_KEY);
+    if (v === "dark" || v === "light") document.documentElement.setAttribute("data-theme", v);
+  } catch (e) { /* storage blocked: keep following the system */ }
+})();
+function currentTheme() {
+  const v = document.documentElement.getAttribute("data-theme");
+  if (v === "dark" || v === "light") return v;
+  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+}
+function syncThemeButtons() {
+  const now = currentTheme();
+  document.querySelectorAll("[data-theme-set]").forEach((b) => b.setAttribute("aria-pressed", String(b.getAttribute("data-theme-set") === now)));
+}
+function chooseTheme(v) {
+  document.documentElement.setAttribute("data-theme", v);
+  try { localStorage.setItem(THEME_KEY, v); } catch (e) { /* not remembered */ }
+  syncThemeButtons();
+}
+/* ============ core: DOM helpers, state, server calls, sign-in ============ */
+const SVG_NS = "http://www.w3.org/2000/svg";
+const REFRESH_MS = 30000;
+const PAGE = 8;
+const THAI_RE = /[฀-๿]/;
+const $ = (id) => document.getElementById(id);
+
+const MSG = {
+  network: "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ (ถ้าเซิร์ฟเวอร์เพิ่งตื่น ลองรอสักครู่แล้วลองใหม่)",
+  generic: "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง",
+  noName: "(ไม่ระบุชื่อ)",
+  line: "ระบบจะส่งข้อความแจ้งผู้เรียนทาง LINE (หากส่งไม่สำเร็จจะลองใหม่ให้เอง)",
+};
+
+/* ---- safe DOM building: every piece of text goes through textContent / text nodes ---- */
+function appendKids(n, kids) {
+  for (const k of kids) {
+    if (k == null || k === false) continue;
+    if (Array.isArray(k)) appendKids(n, k);
+    else if (k instanceof Node) n.appendChild(k);
+    else n.appendChild(document.createTextNode(String(k)));
   }
-  kids.flat().forEach((c) => c != null && n.append(c));
+}
+function h(tag, props, ...kids) {
+  const n = document.createElement(tag);
+  if (props) {
+    for (const k of Object.keys(props)) {
+      const v = props[k];
+      if (v == null || v === false) continue;
+      if (k === "class") n.className = v;
+      else if (k === "text") n.textContent = v;
+      else if (k === "value") n.value = v;
+      else if (k === "events") { for (const ev of Object.keys(v)) n.addEventListener(ev, v[ev]); }
+      else n.setAttribute(k, v === true ? "" : String(v));
+    }
+  }
+  appendKids(n, kids);
   return n;
 }
-const getToken = () => { try { return sessionStorage.getItem("teamToken") || ""; } catch { return ""; } };
-const setToken = (t) => { try { t ? sessionStorage.setItem("teamToken", t) : sessionStorage.removeItem("teamToken"); } catch {} };
+function s(tag, attrs, ...kids) {
+  const n = document.createElementNS(SVG_NS, tag);
+  if (attrs) for (const k of Object.keys(attrs)) { if (attrs[k] != null) n.setAttribute(k, String(attrs[k])); }
+  for (const k of kids) if (k) n.appendChild(k);
+  return n;
+}
+function clear(node) { node.replaceChildren(); }
+function setText(node, text) { if (node.textContent !== text) node.textContent = text; }
 
-class AuthError extends Error {}
-async function api(path, opts = {}) {
+/* ---- small value helpers: never show NaN / undefined ---- */
+const num = (x) => { const v = Number(x); return Number.isFinite(v) ? v : 0; };
+const pctText = (n, t) => (t > 0 ? Math.round((100 * n) / t) + "%" : "");
+function hhmm(d) {
+  return d.toLocaleTimeString("th-TH", { hour: "2-digit", minute: "2-digit", hour12: false });
+}
+function fmtDate(iso) {
+  const d = new Date(iso);
+  return isNaN(d) ? "" : d.toLocaleString("th-TH", { dateStyle: "medium", timeStyle: "short" });
+}
+
+/* ---- state ---- */
+let sessionId = 0;
+function freshState() {
+  return {
+    loaded: false, loading: false, firstError: "", updatedAt: null, sig: "",
+    learners: [], helps: [], tasks: [], currentWeek: 1, report: null, reportWeek: null, weekLoading: false,
+    lrnQuery: "", lrnHideNormal: true, lrnShown: PAGE,
+    helpFilter: "open", helpShown: PAGE, expanded: new Set(), confirming: null, busy: new Map(), cardErr: {},
+    nrShown: PAGE, acc: {}, settings: null, startBuilt: false, taskBuilt: false, taskChips: {}, trend: null, trendLoading: false,
+    route: "home",
+  };
+}
+let S = freshState();
+
+/* ---- server calls ---- */
+class ApiError extends Error {
+  constructor(message, status, code) { super(message); this.status = status; this.code = code || ""; }
+}
+async function api(path, opts) {
+  const o = opts || {};
+  const headers = {};
+  if (o.body) headers["Content-Type"] = "application/json";
   let res;
   try {
-    res = await fetch(path, { ...opts, headers: { "Content-Type": "application/json", "X-Team-Token": getToken() } });
-  } catch { throw new Error("เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ (ถ้าเซิร์ฟเวอร์เพิ่งตื่น ลองรอสักครู่แล้วรีเฟรช)"); }
-  if (res.status === 401) throw new AuthError("รหัสทีมไม่ถูกต้อง");
-  if (res.status === 503) throw new Error("เซิร์ฟเวอร์ยังไม่ได้ตั้งค่า TEAM_TOKEN");
-  const body = await res.json().catch(() => ({}));
-  if (!res.ok) throw new Error(body.error || `เกิดข้อผิดพลาด (${res.status})`);
-  return body;
-}
-
-function showLogin(msg) {
-  $("app").hidden = true; $("login").hidden = false;
-  $("loginError").hidden = !msg; $("loginError").textContent = msg || "";
-  clearInterval(timer);
-}
-function showError(msg) { $("error").hidden = !msg; $("error").textContent = msg || ""; }
-
-async function load() {
-  try {
-    const [t, h, k, r] = await Promise.all([api("/api/triage"), api("/api/help"), api("/api/tasks"),
-      api("/api/report" + (reportWeek ? "?week=" + reportWeek : ""))]);
-    learners = t.learners; helps = h.requests; tasks = k.tasks; currentWeek = k.current_week; report = r;
-    $("login").hidden = true; $("app").hidden = false;
-    showError("");
-    $("updated").textContent = "อัปเดตล่าสุด " + new Date().toLocaleTimeString("th-TH");
-    render();
-    renderReport();
-    // never rebuild the editor while the team is typing in it
-    if (!tasksDirty && !$("tasks").contains(document.activeElement)) renderTasks();
+    res = await fetch(path, { method: o.method || "GET", headers, body: o.body, cache: "no-store" });
   } catch (e) {
-    if (e instanceof AuthError) { setToken(""); showLogin(e.message); }
-    else if ($("app").hidden) showLogin(e.message);
-    else showError(e.message);
+    throw new ApiError(MSG.network, 0, "network");
   }
-}
-
-function render() {
-  const count = (lv) => learners.filter((l) => l.level === lv).length;
-  const open = helps.filter((r) => r.status !== "closed").length;
-  $("stats").replaceChildren(
-    ...[["ต้องตามด่วน", count("high")], ["ควรติดตาม", count("medium")], ["ปกติ", count("normal")], ["เรื่องที่ยังไม่ปิด", open]]
-      .map(([k, v]) => el("div", { class: "stat" }, el("b", { text: String(v) }), el("span", { class: "muted", text: k })))
-  );
-
-  const shown = learners.filter((l) => !($("hideNormal").checked && l.level === "normal"));
-  $("learners").replaceChildren(...(shown.length ? shown.map(learnerCard)
-    : [el("div", { class: "empty", text: learners.length ? "ไม่มีผู้เรียนที่ต้องติดตามตอนนี้ 🎉" : "ยังไม่มีผู้เรียนลงทะเบียน" })]));
-
-  const f = $("helpFilter").value;
-  const rows = helps.filter((r) => f === "all" ? true : f === "open" ? r.status !== "closed" : r.status === f)
-    .sort((a, b) => STATUS_ORDER[a.status] - STATUS_ORDER[b.status] || a.id - b.id);
-  $("helps").replaceChildren(...(rows.length ? rows.map(helpCard)
-    : [el("div", { class: "empty", text: "ไม่มีเรื่องในหมวดนี้" })]));
-}
-
-const BLOCKER = { dont_know_start: "ไม่รู้จะเริ่มตรงไหน", no_time: "ไม่มีเวลา", tool_hard: "เครื่องมือใช้ยาก",
-                  not_confident: "ไม่มั่นใจ", other: "อื่นๆ" };
-const FU = { fu_mid: "กลางช่วงติดตามผล", fu_final: "ครบ 14 วันหลังกิจกรรมหลัก" };
-const OUTCOME = { used: "ใช้แล้ว", not_yet: "ยังไม่ได้ใช้", stuck: "ติดปัญหา" };
-
-const tile = (label, value, sub, alert) => el("div", { class: "stat" + (alert ? " alert" : "") },
-  el("b", { text: String(value) }), el("span", { class: "muted", text: label }),
-  sub ? el("small", { text: sub }) : null);
-
-function renderReportWeeks() {
-  const sel = $("reportWeek");
-  if (sel.options.length !== currentWeek) {
-    sel.replaceChildren(...Array.from({ length: currentWeek }, (_, i) =>
-      el("option", { value: String(i + 1), text: "สัปดาห์ที่ " + (i + 1) + (i + 1 > 4 ? " (ติดตามผล)" : "") })));
+  let body = null;
+  try { body = await res.json(); } catch (e) { body = null; }
+  if (!res.ok) {
+    const code = body && typeof body.error === "string" ? body.error : "";
+    const msg = THAI_RE.test(code) ? code : res.status >= 500 ? "เกิดข้อผิดพลาด (รหัส " + res.status + ")" : MSG.generic;
+    throw new ApiError(msg, res.status, code);
   }
-  sel.value = String(report.week);
+  return body || {};
 }
 
-// an open week is not missed yet, so its silence counts only the weeks before it
-function silentText(n, status) {
-  if (status === "open") {
-    return (n.silent_weeks ? "สัปดาห์ก่อนหน้าไม่ส่งมา " + n.silent_weeks + " สัปดาห์ติด · " : "") + "สัปดาห์นี้ยังไม่ส่ง";
+/* ---- announcements for screen readers (results of what the user did, never auto refresh) ---- */
+function announce(text) {
+  const live = $("live");
+  live.textContent = "";
+  setTimeout(() => { live.textContent = text; }, 40);
+}
+
+/* ---- keep focus + scroll position across a redraw ---- */
+function keyOfActive() {
+  const a = document.activeElement;
+  if (!a || a === document.body) return "";
+  const k = a.closest ? a.closest("[data-fk]") : null;
+  return k ? k.getAttribute("data-fk") : "";
+}
+function focusKey(key, scroll) {
+  if (!key) return false;
+  const nodes = document.querySelectorAll("[data-fk]");
+  for (const n of nodes) {
+    if (n.getAttribute("data-fk") === key && !n.closest("[hidden]")) { n.focus({ preventScroll: !scroll }); return true; }
   }
-  return "ไม่ส่งมา " + n.silent_weeks + " สัปดาห์ติด";
+  return false;
+}
+function keepView(fn) {
+  const key = keyOfActive();
+  const y = window.scrollY;
+  fn();
+  if (key) focusKey(key, false);
+  if (Math.abs(window.scrollY - y) > 1) window.scrollTo(0, y);
 }
 
-function renderReport() {
-  const r = report;
-  renderReportWeeks();
-  const nodes = [];
-  const pct = r.eligible ? Math.round((100 * r.reported) / r.eligible) : 0;
-  const tiles = [tile("ลงทะเบียนแล้ว", r.registered + " คน",
-    "ยังไม่จบขั้นตอน " + r.onboarding_incomplete + " · ยังไม่ยินยอม " + r.awaiting_consent)];
+/* ---- banner / first-load error ---- */
+function showBanner(text) {
+  setText($("bannerText"), text);
+  $("banner").hidden = false;
+}
+function hideBanner() { $("banner").hidden = true; }
+function renderFirstError() {
+  const box = $("firstErr");
+  if (!S.firstError) { clear(box); return; }
+  box.replaceChildren(h("div", { class: "err-card", role: "alert" },
+    h("h3", { text: "โหลดข้อมูลไม่สำเร็จ" }),
+    h("p", { text: S.firstError }),
+    h("button", { class: "btn primary", type: "button", events: { click: () => loadAll("retry") }, text: "ลองใหม่" })));
+}
 
-  if (r.status === "followup") {
-    nodes.push(el("div", { class: "empty", text: "สัปดาห์ที่ " + r.week + " เป็นช่วงติดตามผล ไม่มีรายงานรายสัปดาห์ ดูผลติดตามด้านล่าง" }));
-  } else if (r.status === "future") {
-    nodes.push(el("div", { class: "empty", text: "สัปดาห์นี้ยังไม่เริ่ม" }));
-  } else {
-    tiles.push(tile("รายงานแล้ว", r.reported + " จาก " + r.eligible, pct + "%"),
-      tile("ยังไม่รายงาน", r.not_reported.length + " คน", r.status === "open" ? "สัปดาห์นี้ยังเปิดรับ" : "สัปดาห์นี้ปิดแล้ว", r.not_reported.length > 0 && r.status === "closed"),
-      tile("ความมั่นใจเฉลี่ย", r.avg_confidence == null ? "-" : r.avg_confidence + " / 5", "จากผู้ที่รายงาน " + r.reported + " คน"),
-      tile("ขอให้ทีมติดต่อ", r.wants_contact + " คน"));
+/* ---- header status ---- */
+function updatedLabel() {
+  if (S.updatedAt) return "อัปเดตล่าสุด " + hhmm(S.updatedAt) + " น.";
+  return S.firstError ? "โหลดข้อมูลไม่สำเร็จ" : "กำลังโหลดข้อมูล...";
+}
+function setLoadingUI(mode, on) {
+  const btn = $("refreshBtn");
+  if (mode === "manual" || mode === "retry") {
+    btn.disabled = on;
+    setText(btn, on ? "กำลังรีเฟรช..." : "รีเฟรช");
   }
-  nodes.unshift(el("div", { class: "stats" }, tiles));
+  if (on) setText($("updated"), S.updatedAt ? "กำลังอัปเดต..." : "กำลังโหลดข้อมูล...");
+  else setText($("updated"), updatedLabel());
+}
 
-  if (r.reported > 0) {
-    const bar = (label, n, total) => el("div", { class: "barrow" }, el("span", { text: label }),
-      el("div", { class: "bar", role: "img", ariaLabel: label + " " + n + " จาก " + total },
-        el("i", { style: "width:" + (total ? (100 * n) / total : 0) + "%" })),
-      el("span", { class: "n", text: n + " / " + total }));
-    nodes.push(el("h3", { class: "muted", text: "ความคืบหน้าของผู้ที่รายงาน" }),
-      ...Object.entries(LABEL.progress).map(([k, v]) => bar(v, r.progress[k] || 0, r.reported)));
-    const bl = Object.entries(r.blockers).sort((a, b) => b[1] - a[1]);
-    if (bl.length) {
-      nodes.push(el("h3", { class: "muted", text: "สาเหตุที่ติดขัด (ผู้ที่ติดอยู่หรือยังไม่เริ่ม)" }),
-        ...bl.map(([k, n]) => bar(BLOCKER[k] || k, n, bl.reduce((s, x) => s + x[1], 0))));
-    }
+/* ---- data loading ---- */
+function fetchAll(week) {
+  return Promise.all([
+    api("/api/triage"), api("/api/help"), api("/api/tasks"),
+    api("/api/report" + (week ? "?week=" + encodeURIComponent(week) : "")),
+    api("/api/settings"),
+  ]);
+}
+function sigNow() { return JSON.stringify([S.learners, S.helps, S.currentWeek, S.report, S.settings]); }
+
+function applyAll(d, askedWeek) {
+  S.learners = Array.isArray(d[0].learners) ? d[0].learners : [];
+  S.helps = Array.isArray(d[1].requests) ? d[1].requests : [];
+  S.tasks = Array.isArray(d[2].tasks) ? d[2].tasks : [];
+  S.currentWeek = num(d[2].current_week) || 1;
+  S.settings = d[4] && typeof d[4] === "object" ? d[4] : null;
+  if (askedWeek === S.reportWeek) S.report = d[3]; // a week picked meanwhile must not be overwritten
+  if (S.reportWeek && S.report && S.reportWeek > num(S.report.current_week)) S.reportWeek = null;
+  S.loaded = true; S.firstError = ""; S.updatedAt = new Date();
+  $("main").setAttribute("aria-busy", "false");
+  hideBanner(); renderFirstError();
+  setText($("updated"), updatedLabel());
+  ensureTaskEditor();
+  updateTaskChips();
+  ensureStartEditor();
+  updateStartInfo();
+  const sig = sigNow();
+  if (sig !== S.sig) { S.sig = sig; renderAll(); }
+  if (S.route === "overview") loadTrend(true);
+}
+
+async function waitIdle() {
+  for (let i = 0; i < 60 && S.loading; i++) await new Promise((r) => setTimeout(r, 100));
+}
+
+async function loadAll(mode) {
+  if (S.loading) {
+    if (mode !== "action") return { skipped: true };
+    await waitIdle();
   }
-
-  if (r.not_reported.length) {
-    nodes.push(el("h3", { class: "muted", text: "ยังไม่ได้รายงาน (" + r.not_reported.length + " คน)" }),
-      ...r.not_reported.map((n) => el("div", { class: "card " + (n.silent_weeks >= 2 ? "high" : "medium") },
-        el("div", { class: "top" }, el("span", { class: "name", text: n.nickname }), whoNote(n),
-          el("span", { class: "muted", text: silentText(n, r.status) + " · " +
-            (n.last_report_week ? "รายงานล่าสุดสัปดาห์ที่ " + n.last_report_week : "ยังไม่เคยรายงาน") })))));
-  }
-
-  const hs = r.help.by_status;
-  nodes.push(el("h3", { class: "muted", text: "เรื่องขอความช่วยเหลือ (ทุกสัปดาห์รวมกัน)" }),
-    el("div", { class: "stats" },
-      tile("รอทีมรับเรื่อง", hs.waiting), tile("ทีมรับแล้ว", hs.accepted), tile("ทีมตอบแล้ว", hs.replied), tile("ปิดเรื่อง", hs.closed),
-      tile("เกินกำหนดตอบ", r.help.overdue, "รอเกิน 1 วันทำการ (ไม่นับวันหยุดนักขัตฤกษ์)", r.help.overdue > 0)),
-    el("div", { class: "muted", text: "ที่ยังไม่ปิดแยกตามหมวด: " +
-      Object.entries(LABEL.cat).map(([k, v]) => v + " " + (r.help.open_by_category[k] || 0)).join(" · ") }));
-
-  nodes.push(el("h3", { class: "muted", text: "ผลติดตามหลังกิจกรรมหลัก" }),
-    ...Object.entries(r.followups).map(([k, f]) => el("div", { class: "card normal" },
-      el("div", { class: "top" }, el("span", { class: "name", text: FU[k] }),
-        el("span", { class: "muted", text: f.asked ? "ถามแล้ว " + f.asked + " คน · ตอบแล้ว " + f.answered + " · ยังไม่ตอบ " + f.pending : "ยังไม่ได้ถาม" })),
-      f.answered ? el("div", { text: Object.entries(OUTCOME).map(([o, v]) => v + " " + f.outcomes[o]).join(" · ") }) : null)));
-  $("report").replaceChildren(...nodes);
-}
-
-function renderTasks() {
-  $("tasks").replaceChildren(...tasks.map(taskCard));
-}
-
-const TASK_ERRORS = { title_required: "กรุณากรอกหัวข้อ", title_too_long: "หัวข้อยาวเกิน 120 ตัวอักษร",
-                      description_too_long: "คำอธิบายยาวเกิน 500 ตัวอักษร" };
-
-function taskCard(t) {
-  const title = el("input", { type: "text", value: t.title, maxLength: 120, ariaLabel: "หัวข้อสัปดาห์ที่ " + t.week });
-  const desc = el("textarea", { value: t.description, maxLength: 500, ariaLabel: "คำอธิบายสัปดาห์ที่ " + t.week });
-  const msg = el("span", { class: "saved" });
-  const save = el("button", { type: "button", text: "บันทึก", className: "primary" });
-  [title, desc].forEach((f) => f.addEventListener("input", () => { tasksDirty = true; msg.textContent = ""; }));
-  save.addEventListener("click", async () => {
-    save.disabled = true;
-    try {
-      await api("/api/tasks/" + t.week, { method: "PUT", body: JSON.stringify({ title: title.value, description: desc.value }) });
-      tasksDirty = false; msg.className = "saved"; msg.textContent = "บันทึกแล้ว ✓";
-      showError("");
-    } catch (e) {
-      if (e instanceof AuthError) { setToken(""); return showLogin(e.message); }
-      msg.className = "muted"; msg.textContent = "";
-      showError(TASK_ERRORS[e.message] || e.message);
-    }
-    save.disabled = false;
-  });
-  return el("div", { class: "card normal task" },
-    el("div", { class: "top" }, el("span", { class: "name", text: "สัปดาห์ที่ " + t.week }),
-      t.week === currentWeek ? el("span", { class: "badge info", text: "สัปดาห์ปัจจุบัน" }) : null),
-    title, desc, el("div", { class: "actions" }, save, msg));
-}
-
-// nickname alone is ambiguous: add the LINE name (searchable in LINE OA Manager) and a short ref
-function whoNote(x) {
-  const bits = [x.display_name ? "LINE: " + x.display_name : null, x.ref ? "#" + x.ref : null].filter(Boolean);
-  return bits.length ? el("span", { class: "muted", text: bits.join(" · ") }) : null;
-}
-
-function learnerCard(l) {
-  return el("div", { class: "card " + l.level },
-    el("div", { class: "top" },
-      el("span", { class: "name", text: l.nickname || "(ไม่ระบุชื่อ)" }),
-      whoNote(l),
-      el("span", { class: "badge " + l.level, text: "ความเสี่ยง" + LABEL.level[l.level] }),
-      el("span", { class: "muted", text: "คะแนน " + l.score }),
-      l.last_progress ? el("span", { class: "muted", text: "ล่าสุด: " + LABEL.progress[l.last_progress] }) : null),
-    el("ul", {}, l.reasons.map((r) => el("li", { text: r }))));
-}
-
-function helpCard(r) {
-  const created = new Date(r.created_at);
-  const acts = NEXT[r.status].map(([to, label]) => {
-    const b = el("button", { type: "button", text: label, className: to === "accepted" && r.status === "waiting" ? "primary" : "" });
-    b.addEventListener("click", () => changeStatus(r.id, to, b));
-    return b;
-  });
-  return el("div", { class: "card " + (r.status === "waiting" ? "high" : r.status === "closed" ? "normal" : "medium") },
-    el("div", { class: "top" },
-      el("span", { class: "name", text: "#" + r.id + " " + (r.nickname || "(ไม่ระบุชื่อ)") }),
-      whoNote(r),
-      el("span", { class: "badge info", text: LABEL.cat[r.category] || r.category }),
-      el("span", { class: "badge " + (r.status === "waiting" ? "high" : r.status === "closed" ? "normal" : "medium"), text: LABEL.status[r.status] }),
-      r.overdue ? el("span", { class: "badge high", text: "เกินกำหนดตอบ" }) : null,
-      el("span", { class: "muted", text: isNaN(created) ? "" : created.toLocaleString("th-TH", { dateStyle: "short", timeStyle: "short" }) })),
-    r.detail ? el("div", { class: "detail", text: r.detail }) : el("div", { class: "muted", text: "(ไม่ได้ระบุรายละเอียด)" }),
-    acts.length ? el("div", { class: "actions" }, acts) : null);
-}
-
-async function changeStatus(id, status, btn) {
-  document.querySelectorAll(".actions button").forEach((b) => (b.disabled = true)); // one click, one request
+  const sess = sessionId, week = S.reportWeek;
+  S.loading = true; setLoadingUI(mode, true);
   try {
-    await api(`/api/help/${id}/status`, { method: "POST", body: JSON.stringify({ status }) });
-    showError("");
+    const d = await fetchAll(week);
+    if (sess !== sessionId) return { skipped: true };
+    applyAll(d, week);
+    if (mode === "manual") announce("อัปเดตข้อมูลแล้ว");
+    return { ok: true };
   } catch (e) {
-    if (e instanceof AuthError) { setToken(""); return showLogin(e.message); }
-    showError(e.message);
+    if (sess !== sessionId) return { skipped: true };
+    if (!S.loaded) { S.firstError = e.message; renderFirstError(); }
+    else showBanner("โหลดข้อมูลใหม่ไม่สำเร็จ แสดงข้อมูลเดิมของเวลา " + hhmm(S.updatedAt) + " น. (" + e.message + ")");
+    return { error: e };
+  } finally {
+    if (sess === sessionId) { S.loading = false; setLoadingUI(mode, false); }
   }
-  await load();
 }
 
-$("loginForm").addEventListener("submit", (e) => {
-  e.preventDefault();
-  setToken($("token").value.trim()); $("token").value = "";
-  load().then(() => { if (!$("app").hidden) startTimer(); });
-});
-$("logout").addEventListener("click", () => { setToken(""); showLogin(""); });
-$("refresh").addEventListener("click", load);
-$("hideNormal").addEventListener("change", render);
-$("reportWeek").addEventListener("change", () => { reportWeek = $("reportWeek").value; load(); });
-$("exportBtn").addEventListener("click", async () => {
-  const kind = $("exportKind").value;
-  try {
-    const res = await fetch("/api/export.csv?kind=" + encodeURIComponent(kind), { headers: { "X-Team-Token": getToken() } });
-    if (res.status === 401) { setToken(""); return showLogin("รหัสทีมไม่ถูกต้อง"); }
-    if (!res.ok) throw new Error("ดาวน์โหลดไม่สำเร็จ (" + res.status + ")");
-    const url = URL.createObjectURL(await res.blob());
-    const a = el("a", { href: url, download: "tiis-" + kind + ".csv" });
-    document.body.append(a); a.click(); a.remove(); URL.revokeObjectURL(url);
-    showError("");
-  } catch (e) { showError(e.message); }
-});
-$("helpFilter").addEventListener("change", render);
-
+function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
+let timer = null;
 function startTimer() {
-  clearInterval(timer);
-  timer = setInterval(() => { if (!document.hidden) load(); }, 30000);
+  stopTimer();
+  timer = setInterval(() => { if (!document.hidden && S.loaded) loadAll("auto"); }, REFRESH_MS);
 }
-if (getToken()) { load().then(() => { if (!$("app").hidden) startTimer(); }); } else showLogin("");
+
+/* ---- routes (hash only) ---- */
+const NAV = [
+  { r: "home", short: "หน้าแรก", full: "หน้าแรก" },
+  { r: "learners", short: "ต้องตาม", full: "ผู้เรียนที่ต้องตาม" },
+  { r: "help", short: "ช่วยเหลือ", full: "เรื่องขอความช่วยเหลือ" },
+  { r: "overview", short: "ภาพรวม", full: "ภาพรวมรายสัปดาห์" },
+  { r: "settings", short: "ตั้งค่า", full: "ตั้งค่างานและส่งออก" },
+];
+function renderNav() {
+  const ul = $("navList");
+  const high = S.learners.filter((l) => l.level === "high").length;
+  const waiting = S.helps.filter((r) => r.status === "waiting").length;
+  const badge = { learners: [high, "ต้องตามด่วน " + high + " คน", ""], help: [waiting, "รอทีมรับ " + waiting + " เรื่อง", "attn"] };
+  ul.replaceChildren(...NAV.map((n) => {
+    const b = badge[n.r];
+    const a = h("a", { href: "#/" + n.r, "data-r": n.r },
+      h("span", { class: "tl-short", "aria-hidden": "true", text: n.short }),
+      h("span", { class: "tl-full", text: n.full }),
+      b && b[0] > 0 ? h("span", { class: "badge-n " + b[2], "aria-hidden": "true", text: String(b[0]) }) : null,
+      b && b[0] > 0 ? h("span", { class: "sr", text: " " + b[1] }) : null);
+    if (n.r === S.route) a.setAttribute("aria-current", "page");
+    return h("li", null, a);
+  }));
+}
+function routeFromHash() {
+  const m = /^#\/([a-z]+)$/.exec(location.hash);
+  return m && NAV.some((n) => n.r === m[1]) ? m[1] : null;
+}
+function showRoute(route, user) {
+  S.route = route;
+  for (const n of NAV) $("p-" + n.r).hidden = n.r !== route;
+  for (const a of document.querySelectorAll("#navList a")) {
+    if (a.getAttribute("data-r") === route) a.setAttribute("aria-current", "page"); else a.removeAttribute("aria-current");
+  }
+  const item = NAV.find((n) => n.r === route);
+  document.title = item.full + " - TIIS";
+  if (route === "overview") loadTrend(false);
+  if (user) {
+    window.scrollTo(0, 0);
+    $("h-" + route).focus({ preventScroll: true });
+  }
+}
+function syncRoute(user) {
+  let r = routeFromHash();
+  if (!r) { history.replaceState(null, "", location.pathname + location.search + "#/home"); r = "home"; }
+  showRoute(r, user);
+}
+
+/* ============ shared labels, chips, name helpers ============ */
+const LEVEL = { high: ["ต้องตามด่วน", "urgent"], medium: ["ควรติดตาม", "attn"], normal: ["ปกติ", "ok"] };
+const PROGRESS = { done: ["ทำเสร็จแล้ว", "ok"], doing: ["กำลังทำ", "info"], not_started: ["ยังไม่ได้เริ่ม", "none"], stuck: ["ติดอยู่", "urgent"] };
+const HSTATUS = { waiting: ["รอทีมรับเรื่อง", "attn"], accepted: ["ทีมรับเรื่องแล้ว", "info"], replied: ["ทีมตอบแล้ว", "ok"], closed: ["ปิดเรื่อง", "slate"] };
+const CATEGORY = { content: "เนื้อหา/ชิ้นงาน", tool: "เครื่องมือ/เทคนิค", confidence: "ไม่มั่นใจ/กำลังใจ", other: "เรื่องอื่นๆ" };
+
+function chip(pair, extra) {
+  const p = pair || ["", "none"];
+  return h("span", { class: "chip " + p[1] + (extra ? " " + extra : ""), text: p[0] });
+}
+
+/* nicknames shared by more than one person (matched by the short code the server sends) */
+function dupNames() {
+  const seen = new Map();
+  const add = (nick, ref) => {
+    if (!nick) return;
+    if (!seen.has(nick)) seen.set(nick, new Set());
+    seen.get(nick).add(ref || "");
+  };
+  S.learners.forEach((l) => add(l.nickname, l.ref));
+  S.helps.forEach((r) => add(r.nickname, r.ref));
+  if (S.report && Array.isArray(S.report.not_reported)) S.report.not_reported.forEach((n) => add(n.nickname, n.ref));
+  const dup = new Set();
+  seen.forEach((refs, nick) => { if (refs.size > 1) dup.add(nick); });
+  return dup;
+}
+/* LINE name when we have it; otherwise, only for a duplicated nickname, the small "told apart" note */
+function whoLine(x, dup) {
+  if (x.display_name) return h("p", { class: "sub", text: "LINE: " + x.display_name });
+  if (x.nickname && dup.has(x.nickname) && x.ref) return h("p", { class: "sub", text: "ชื่อซ้ำกับคนอื่น (รหัสแยก " + x.ref + ")" });
+  return null;
+}
+function nameNode(x, tag) {
+  const p = x.nickname ? { text: x.nickname } : { class: "muted", text: MSG.noName };
+  if (tag === "p" && x.nickname) p.class = "strong";
+  return h(tag || "h3", p);
+}
+
+function loadingBox() {
+  return S.firstError ? null : h("div", { class: "loading-box", text: "กำลังโหลดข้อมูล..." });
+}
+function emptyBox(title, sub, btn) {
+  return h("div", { class: "empty" }, h("p", { class: "t", text: title }), sub ? h("p", { class: "small muted", text: sub }) : null, btn);
+}
+
+/* ============ help counting: ONE source for the home card, the filter and the list ============ */
+const HELP_FILTERS = [
+  { key: "open", label: "ที่ยังไม่ปิด", test: (r) => r.status !== "closed", empty: "ตอนนี้ไม่มีเรื่องที่ยังไม่ปิด" },
+  { key: "overdue", label: "เกินกำหนดตอบ", test: (r) => !!r.overdue, empty: "ไม่มีเรื่องที่เกินกำหนดตอบ" },
+  { key: "waiting", label: "รอทีมรับเรื่อง", test: (r) => r.status === "waiting", empty: "ไม่มีเรื่องที่รอทีมรับ" },
+  { key: "accepted", label: "ทีมรับเรื่องแล้ว", test: (r) => r.status === "accepted", empty: "ไม่มีเรื่องที่ทีมรับไว้และยังไม่ได้ตอบ" },
+  { key: "replied", label: "ทีมตอบแล้ว", test: (r) => r.status === "replied", empty: "ไม่มีเรื่องที่ตอบแล้วและรอปิด" },
+  { key: "closed", label: "ปิดเรื่อง", test: (r) => r.status === "closed", empty: "ยังไม่มีเรื่องที่ปิดแล้ว" },
+  { key: "all", label: "ทั้งหมด", test: () => true, empty: "ยังไม่มีผู้เรียนส่งเรื่องขอความช่วยเหลือ" },
+];
+const filterOf = (key) => HELP_FILTERS.find((f) => f.key === key) || HELP_FILTERS[0];
+const helpCount = (key) => S.helps.filter(filterOf(key).test).length;
+const STATUS_RANK = { waiting: 0, accepted: 1, replied: 2, closed: 3 };
+function helpSorted(rows) {
+  return rows.slice().sort((a, b) => (b.overdue ? 1 : 0) - (a.overdue ? 1 : 0) ||
+    (STATUS_RANK[a.status] ?? 9) - (STATUS_RANK[b.status] ?? 9) || num(a.id) - num(b.id));
+}
+
+/* ============ home: what to do today ============ */
+function homeCard(o) {
+  const a = h("a", {
+    class: "home-card " + (o.n > 0 ? "tone-" + o.tone : "zero"), href: o.href, "data-fk": o.fk,
+    "aria-label": o.title + " " + o.n + " " + o.unit + " ดูรายการ",
+    events: { click: o.pick || (() => {}) },
+  },
+    h("div", null, h("span", { class: "num", text: String(o.n) }), h("span", { class: "unit", text: o.unit })),
+    h("div", { class: "body" },
+      h("h3", { text: o.title }),
+      (o.n > 0 ? o.desc : "ไม่มี") ? h("span", { class: "small", text: o.n > 0 ? o.desc : "ไม่มี" }) : null,
+      o.extra ? h("span", { class: "small", text: o.extra }) : null),
+    h("span", { class: "arrow", "aria-hidden": "true", text: "›" }));
+  return a;
+}
+function pickHelp(key) {
+  return () => { S.helpFilter = key; S.helpShown = PAGE; renderHelp(); };
+}
+function renderHome() {
+  const box = $("homeBody");
+  if (!S.loaded) { const l = loadingBox(); if (l) box.replaceChildren(l); else clear(box); return; }
+  const high = S.learners.filter((l) => l.level === "high").length;
+  const medium = S.learners.filter((l) => l.level === "medium").length;
+  const overdue = helpCount("overdue"), waiting = helpCount("waiting");
+  if (!high && !overdue && !waiting) {
+    const mark = s("svg", { class: "check-mark", width: 28, height: 28, viewBox: "0 0 28 28", "aria-hidden": "true", focusable: "false" },
+      s("circle", { cx: 14, cy: 14, r: 13, fill: "var(--ok)" }),
+      s("path", { d: "M8 14.5l4 4 8-9", fill: "none", stroke: "var(--on-strong)", "stroke-width": 3, "stroke-linecap": "round", "stroke-linejoin": "round" }));
+    box.replaceChildren(h("div", { class: "allclear" },
+      h("div", { class: "head" }, mark, h("h3", { text: "ไม่มีเรื่องเร่งด่วน" })),
+      h("p", { text: "ไม่มีผู้เรียนที่ต้องตามด่วน และไม่มีเรื่องที่รอรับหรือเกินกำหนดตอบ" }),
+      S.learners.length ? null : h("p", { class: "muted", text: "ยังไม่มีผู้เรียนลงทะเบียน" }),
+      h("div", { class: "btns" },
+        h("a", { class: "btn", href: "#/learners", "data-fk": "home-all-l", text: "ดูผู้เรียนทั้งหมด" }),
+        h("a", { class: "btn", href: "#/help", "data-fk": "home-all-h", text: "ดูเรื่องขอความช่วยเหลือ" }))),
+      ...[homeSummary()].filter(Boolean));
+    if (projectStrip()) box.prepend(projectStrip());
+    return;
+  }
+  box.replaceChildren(h("div", { class: "home-grid" },
+    homeCard({ n: overdue, unit: "เรื่อง", title: "เกินกำหนดตอบ", desc: "รอเกิน 1 วันทำการ (ไม่นับวันหยุดนักขัตฤกษ์)", href: "#/help", tone: "urgent", fk: "home-1", pick: pickHelp("overdue") }),
+    homeCard({ n: waiting, unit: "เรื่อง", title: "เรื่องรอทีมรับ", desc: "ยังไม่มีใครรับเรื่อง", href: "#/help", tone: "attn", fk: "home-2", pick: pickHelp("waiting") }),
+    homeCard({ n: high, unit: "คน", title: "ผู้เรียนที่ต้องตามด่วน", desc: "", extra: medium ? "ควรติดตามอีก " + medium + " คน" : "", href: "#/learners", tone: "urgent", fk: "home-3" })),
+    ...[homeSummary()].filter(Boolean));
+  if (projectStrip()) box.prepend(projectStrip());
+}
+
+/* ============ learners ============ */
+function learnerMatches(l, q) {
+  return (l.nickname || "").toLowerCase().includes(q) || (l.display_name || "").toLowerCase().includes(q);
+}
+function learnerCard(l, idx, dup) {
+  const lv = LEVEL[l.level] ? l.level : "normal";
+  const reasons = Array.isArray(l.reasons) && l.reasons.length ? l.reasons : [];
+  return h("li", null, h("div", { class: "card lv-" + lv, tabindex: "-1", "data-fk": "lc-" + idx },
+    h("div", { class: "row" }, nameNode(l), chip(LEVEL[lv])),
+    whoLine(l, dup),
+    reasons.length ? h("ul", { class: "reasons" }, reasons.map((r) => h("li", { text: String(r) }))) : h("p", { class: "muted", text: "ไม่มีเหตุผลเพิ่มเติม" }),
+    l.last_progress && PROGRESS[l.last_progress]
+      ? h("p", { class: "small muted" }, "ล่าสุดรายงานว่า: ", chip(PROGRESS[l.last_progress])) : null));
+}
+function renderLearners() {
+  const sum = $("lrnSummary"), list = $("lrnList"), cnt = $("lrnCount");
+  if (!S.loaded) {
+    clear(sum); setText(cnt, "");
+    const l = loadingBox(); if (l) list.replaceChildren(l); else clear(list);
+    return;
+  }
+  const by = (lv) => S.learners.filter((l) => l.level === lv).length;
+  sum.replaceChildren(...["high", "medium", "normal"].map((lv) => h("span", { text: LEVEL[lv][0] + " " + by(lv) + " คน" })));
+  const q = S.lrnQuery.trim().toLowerCase();
+  let rows = S.learners.filter((l) => !q || learnerMatches(l, q));
+  const hiddenNormal = S.lrnHideNormal ? rows.filter((l) => l.level === "normal").length : 0;
+  if (S.lrnHideNormal) rows = rows.filter((l) => l.level !== "normal");
+  const shown = rows.slice(0, S.lrnShown);
+  setText(cnt, S.learners.length ? "แสดง " + shown.length + " จาก " + rows.length + " คน" : "");
+
+  if (!S.learners.length) { list.replaceChildren(emptyBox("ยังไม่มีผู้เรียนลงทะเบียน")); return; }
+  if (!rows.length) {
+    const nodes = [];
+    if (q) {
+      nodes.push(emptyBox('ไม่พบผู้เรียนที่ชื่อ "' + S.lrnQuery.trim() + '"'));
+      if (hiddenNormal) {
+        nodes.push(h("div", { class: "empty" },
+          h("p", { text: "ไม่พบในรายการที่แสดง แต่มี " + hiddenNormal + " คนที่ตรงกันในกลุ่มปกติ" }),
+          h("button", { class: "btn", type: "button", "data-fk": "lrn-showall", text: "แสดงผู้ที่ปกติ", events: { click: () => {
+            S.lrnHideNormal = false; $("lrnHide").checked = false; S.lrnShown = PAGE; renderLearners(); focusKey("lrn-showall", false);
+          } } })));
+      }
+    } else {
+      nodes.push(emptyBox("ไม่มีผู้เรียนที่ต้องติดตามตอนนี้ ทุกคนอยู่ในระดับปกติ"));
+    }
+    list.replaceChildren(...nodes);
+    return;
+  }
+  const dup = dupNames();
+  const counts = {};
+  rows.forEach((l) => { counts[l.level] = (counts[l.level] || 0) + 1; });
+  const nodes = [];
+  let last = null;
+  shown.forEach((l, i) => {
+    const lv = LEVEL[l.level] ? l.level : "normal";
+    if (lv !== last) {
+      nodes.push(h("li", { class: "groupHead" }, LEVEL[lv][0] + " (" + (counts[l.level] || 0) + " คน)"));
+      last = lv;
+    }
+    nodes.push(learnerCard(l, i, dup));
+  });
+  if (rows.length > shown.length) {
+    const n = Math.min(PAGE, rows.length - shown.length);
+    nodes.push(h("li", null, h("button", { class: "btn block", type: "button", "data-fk": "lrn-more",
+      text: "แสดงเพิ่มอีก " + n + " คน (เหลือ " + (rows.length - shown.length) + " คน)",
+      events: { click: () => { const first = shown.length; S.lrnShown += PAGE; renderLearners(); focusKey("lc-" + first, false); } } })));
+  }
+  list.replaceChildren(h("ul", { class: "list" }, nodes));
+}
+
+/* ============ help requests ============ */
+const NEXT_STEP = {
+  waiting: "ขั้นถัดไป: รับเรื่องนี้ไว้ดูแล",
+  accepted: 'ขั้นถัดไป: ตอบผู้เรียนใน LINE แล้วกด "ตอบแล้ว"',
+  replied: "ตอบแล้ว: ถ้าผู้เรียนยังมีคำถามให้เปิดใหม่ ถ้าจบแล้วให้ปิดเรื่อง",
+};
+const DONE_TEXT = {
+  accepted: (n) => "รับเรื่องของ " + n + " แล้ว",
+  replied: (n) => "บันทึกว่าตอบเรื่องของ " + n + " แล้ว",
+  reopen: (n) => "เปิดเรื่องของ " + n + " ใหม่แล้ว",
+  closed: (n) => "ปิดเรื่องของ " + n + " แล้ว",
+};
+const CARD_ERR_GENERIC = "ทำรายการไม่สำเร็จ อาจมีคนในทีมเปลี่ยนสถานะเรื่องนี้ไปก่อนแล้ว ระบบกำลังโหลดข้อมูลใหม่";
+function cardErrText(e) {
+  if (e instanceof ApiError && e.code !== "network" && !THAI_RE.test(e.code)) return CARD_ERR_GENERIC;
+  return "ทำรายการไม่สำเร็จ: " + e.message;
+}
+
+async function changeStatus(r, to) {
+  if (S.busy.has(r.id)) return; // one click, one request (checked before anything async)
+  S.busy.set(r.id, to);
+  delete S.cardErr[r.id];
+  renderHelp();
+  const sess = sessionId, from = r.status, who = r.nickname || "ผู้เรียน";
+  let ok = false;
+  try {
+    await api("/api/help/" + encodeURIComponent(r.id) + "/status", { method: "POST", body: JSON.stringify({ status: to }) });
+    ok = true;
+  } catch (e) {
+    S.cardErr[r.id] = cardErrText(e);
+  }
+  if (sess !== sessionId) return;
+  S.busy.delete(r.id);
+  if (ok) {
+    if (S.confirming === r.id) S.confirming = null;
+    announce(DONE_TEXT[to === "accepted" && from === "replied" ? "reopen" : to](who));
+  } else {
+    announce(S.cardErr[r.id]);
+  }
+  renderHelp();
+  await loadAll("action");
+  if (sess !== sessionId) return;
+  if (!focusKey("card-" + r.id, true)) $("h-help").focus({ preventScroll: true });
+}
+
+function actionRow(r) {
+  const id = r.id, busy = S.busy.get(id), dis = S.busy.has(id);
+  const mk = (cls, label, busyLabel, to, fk) => h("button", {
+    class: "btn " + cls, type: "button", "data-fk": fk, disabled: dis,
+    events: { click: () => changeStatus(r, to) },
+    text: busy === to ? busyLabel : label,
+  });
+  const main = [];
+  if (r.status === "waiting") main.push(mk("primary block", "รับเรื่อง", "กำลังบันทึก...", "accepted", "ha-" + id + "-accept"));
+  if (r.status === "accepted") main.push(mk("primary block", "ตอบแล้ว", "กำลังบันทึก...", "replied", "ha-" + id + "-replied"));
+  if (r.status === "replied") main.push(mk("block", "เปิดใหม่", "กำลังบันทึก...", "accepted", "ha-" + id + "-reopen"));
+  return h("div", { class: "actions" },
+    h("p", { class: "next", text: NEXT_STEP[r.status] }),
+    main.length ? h("div", { class: "primary-row" }, main) : null,
+    h("div", { class: "closerow" }, h("button", {
+      class: "btn danger", type: "button", "data-fk": "ha-" + id + "-close", disabled: dis,
+      events: { click: () => { S.confirming = id; renderHelp(); focusKey("hc-" + id + "-no", false); } },
+      text: "ปิดเรื่อง",
+    })));
+}
+function confirmPanel(r) {
+  const id = r.id, closing = S.busy.get(id) === "closed", dis = S.busy.has(id);
+  const cancel = () => { S.confirming = null; renderHelp(); focusKey("ha-" + id + "-close", false); };
+  return h("div", {
+    class: "confirm", role: "group", "aria-label": "ยืนยันปิดเรื่อง",
+    events: { keydown: (e) => { if (e.key === "Escape" && !dis) { e.preventDefault(); cancel(); } } },
+  },
+    h("p", { class: "ttl" }, h("span", { class: "mark bad", "aria-hidden": "true", text: "!" }), h("span", { text: "ปิดเรื่องนี้ใช่ไหม" })),
+    h("p", { text: "ปิดแล้วเปิดกลับมาไม่ได้ " + MSG.line }),
+    h("div", { class: "two" },
+      h("button", { class: "btn", type: "button", "data-fk": "hc-" + id + "-no", disabled: dis, events: { click: cancel }, text: "ไม่ปิด" }),
+      h("button", { class: "btn danger-solid", type: "button", "data-fk": "hc-" + id + "-yes", disabled: dis,
+        events: { click: () => changeStatus(r, "closed") }, text: closing ? "กำลังปิดเรื่อง..." : "ปิดเรื่อง" })));
+}
+function detailBlock(r) {
+  const d = typeof r.detail === "string" ? r.detail : "";
+  if (!d.trim()) return h("p", { class: "muted", text: "(ไม่ได้ระบุรายละเอียด)" });
+  const long = d.length > 200;
+  const open = S.expanded.has(r.id);
+  return h("div", null,
+    h("div", { class: "detail" + (long && !open ? " clamp" : ""), text: d }),
+    long ? h("button", { class: "tbtn", type: "button", "data-fk": "hd-" + r.id, "aria-expanded": String(open),
+      text: open ? "ย่อ" : "อ่านทั้งหมด",
+      events: { click: () => { if (S.expanded.has(r.id)) S.expanded.delete(r.id); else S.expanded.add(r.id); renderHelp(); } } }) : null);
+}
+function helpCard(r, dup) {
+  const st = HSTATUS[r.status] ? r.status : "waiting";
+  const cls = r.overdue ? "st-overdue" : "st-" + st;
+  const when = fmtDate(r.created_at);
+  return h("li", null, h("div", { class: "card " + cls, tabindex: "-1", "data-fk": "card-" + r.id },
+    r.overdue ? h("div", { class: "overdue-bar" }, h("span", { class: "mark", "aria-hidden": "true", text: "!" }),
+      h("span", { text: "เกินกำหนดตอบ - รอทีมรับเรื่องเกิน 1 วันทำการ" })) : null,
+    h("div", { class: "row" }, nameNode(r), chip(HSTATUS[st])),
+    whoLine(r, dup),
+    h("p", { class: "small muted" }, chip([CATEGORY[r.category] || CATEGORY.other, "cat"]), when ? "  ส่งเมื่อ " + when : ""),
+    detailBlock(r),
+    st === "closed" ? h("p", { class: "small muted", text: "เรื่องนี้ปิดแล้ว" })
+      : S.confirming === r.id ? confirmPanel(r) : actionRow(r),
+    S.cardErr[r.id] ? h("p", { class: "cerr", role: "alert" }, h("span", { class: "mark bad", "aria-hidden": "true", text: "!" }), h("span", { text: S.cardErr[r.id] })) : null));
+}
+function ensureHelpFilter() {
+  const sel = $("helpFilter");
+  if (!sel.options.length) {
+    HELP_FILTERS.forEach((f) => sel.appendChild(h("option", { value: f.key })));
+    sel.value = S.helpFilter;
+  }
+  HELP_FILTERS.forEach((f, i) => setText(sel.options[i], f.label + " (" + (S.loaded ? helpCount(f.key) : 0) + ")"));
+  sel.value = S.helpFilter;
+}
+function renderHelp() {
+  ensureHelpFilter();
+  const list = $("helpList");
+  if (!S.loaded) { setText($("helpNow"), ""); const l = loadingBox(); if (l) list.replaceChildren(l); else clear(list); return; }
+  if (S.confirming != null) {
+    const cur = S.helps.find((r) => r.id === S.confirming);
+    if (!cur || cur.status === "closed") S.confirming = null; // someone else closed it first
+  }
+  const f = filterOf(S.helpFilter);
+  const rows = helpSorted(S.helps.filter(f.test));
+  const shown = rows.slice(0, S.helpShown);
+  setText($("helpNow"), "กำลังแสดง: " + f.label + " (" + rows.length + " เรื่อง)");
+  if (!rows.length) { list.replaceChildren(emptyBox(f.empty)); return; }
+  const dup = dupNames();
+  const nodes = shown.map((r) => helpCard(r, dup));
+  if (rows.length > shown.length) {
+    const n = Math.min(PAGE, rows.length - shown.length);
+    nodes.push(h("li", null, h("button", { class: "btn block", type: "button", "data-fk": "help-more",
+      text: "แสดงเพิ่มอีก " + n + " เรื่อง (เหลือ " + (rows.length - shown.length) + " เรื่อง)",
+      events: { click: () => { const nextId = rows[shown.length].id; S.helpShown += PAGE; renderHelp(); focusKey("card-" + nextId, true); } } })));
+  }
+  const ul = h("ul", { class: "list" }, nodes);
+  keepView(() => list.replaceChildren(ul));
+}
+
+/* ============ charts: SVG for the shapes, real text for every number ============ */
+/* one segment of any chart: a solid fill (the legend row and the numbers beside it carry the label) */
+function segGroup(kind, x, y, w, ht, rx, dashed) {
+  const g = s("g", { class: "k-" + kind + (dashed ? " dashed" : "") });
+  g.appendChild(s("rect", { class: "base", x, y, width: w, height: ht, rx }));
+  return g;
+}
+function swatch(kind) {
+  return s("svg", { viewBox: "0 0 20 20", width: 20, height: 20, "aria-hidden": "true", focusable: "false" }, segGroup(kind, 1, 1, 18, 18, 3));
+}
+function stackBar(parts, label, ht) {
+  const H = ht || 28, W = 320, gap = 3;
+  const svg = s("svg", { viewBox: "0 0 " + W + " " + H, class: "chart-svg", role: "img", "aria-label": label, preserveAspectRatio: "xMinYMid meet" });
+  const vis = parts.filter((p) => p.n > 0);
+  const total = vis.reduce((a, p) => a + p.n, 0);
+  if (!total) return svg;
+  const usable = W - gap * (vis.length - 1);
+  const w = vis.map((p) => Math.max((usable * p.n) / total, 6));
+  const over = w.reduce((a, b) => a + b, 0) - usable;
+  if (over > 0.001) w[w.indexOf(Math.max(...w))] -= over;
+  let x = 0;
+  vis.forEach((p, i) => { svg.appendChild(segGroup(p.kind, x, 0, w[i], H, 4)); x += w[i] + gap; });
+  return svg;
+}
+function donut(reported, total, label, pct) {
+  const R = 59, C = 2 * Math.PI * R;
+  const svg = s("svg", { viewBox: "0 0 160 160", class: "donut", role: "img", "aria-label": label });
+  const segs = [{ kind: "ok", n: reported }, { kind: "attn", n: total - reported }].filter((x) => x.n > 0);
+  let off = 0;
+  segs.forEach((sg) => {
+    const len = (C * sg.n) / total, shown = Math.max(len - (segs.length > 1 ? 2.5 : 0), 0);   // a small gap between the two arcs
+    svg.appendChild(s("circle", { class: "arc a-" + sg.kind, cx: 80, cy: 80, r: R, "stroke-width": 24, transform: "rotate(-90 80 80)",
+      "stroke-dasharray": shown + " " + (C - shown), "stroke-dashoffset": -off }));
+    off += len;
+  });
+  const t = s("text", { x: 80, y: 80, "text-anchor": "middle", "dominant-baseline": "central", class: "donut-pct" });
+  t.textContent = pct;
+  svg.appendChild(t);
+  return svg;
+}
+/* the table is the text alternative of the picture, and it stays visible */
+function legendTable(caption, rows) {
+  return h("table", { class: "legend" },
+    h("caption", { class: "sr", text: caption }),
+    h("tbody", null, rows.map((r) => h("tr", { class: r.hot ? "hot" : "" },
+      h("th", { scope: "row" }, h("span", { class: "sw" }, swatch(r.kind), h("span", { text: r.label }))),
+      h("td", { text: r.n + " จาก " + r.total + " " + r.unit }),
+      h("td", { class: "pc", text: pctText(r.n, r.total) })))));
+}
+
+/* ============ accordion (state lives in S.acc so a redraw never closes what the user opened) ============ */
+function accordion(o) {
+  const open = Object.prototype.hasOwnProperty.call(S.acc, o.key) ? S.acc[o.key] : o.defOpen;
+  const bid = "accb-" + o.key;
+  const sum = h("span", { class: "sum", text: o.summary || "" });
+  sum.hidden = open || !o.summary;
+  const titleNode = h("span", { class: o.trunc ? "trunc" : "", text: o.title });
+  const btn = h("button", { class: "acc-btn", type: "button", "aria-expanded": String(open), "aria-controls": bid, "data-fk": "acc-" + o.key },
+    h("span", { class: "chev", "aria-hidden": "true", text: "›" }),
+    h("span", { class: "ttl" }, titleNode, sum),
+    o.chip || null);
+  const body = h("div", { class: "acc-body", id: bid }, o.body);
+  body.hidden = !open;
+  btn.addEventListener("click", () => {
+    const now = btn.getAttribute("aria-expanded") !== "true";
+    S.acc[o.key] = now;
+    btn.setAttribute("aria-expanded", String(now));
+    body.hidden = !now;
+    sum.hidden = now || !sum.textContent;
+    if (o.toggled) o.toggled(now);
+  });
+  return {
+    root: h("div", { class: "acc" }, h("h3", null, btn), body),
+    setTitle: (t) => setText(titleNode, t),
+  };
+}
+
+/* ============ overview ============ */
+const WEEK_CHIP = { open: ["ยังเปิดรับรายงาน", "info"], closed: ["ปิดรับรายงานแล้ว", "slate"], followup: ["ช่วงติดตามผล", "info"], future: ["ยังไม่เริ่ม", "slate"] };
+const BLOCKER_NAME = { dont_know_start: "ไม่รู้จะเริ่มตรงไหน", no_time: "ไม่มีเวลา", tool_hard: "เครื่องมือใช้ยาก", not_confident: "ไม่มั่นใจ", other: "อื่นๆ" };
+const BLOCKER_ORDER = Object.keys(BLOCKER_NAME);
+const FU_TITLE = { fu_mid: "ครั้งที่ 1: กลางช่วงติดตามผล", fu_final: "ครั้งที่ 2: ครบ 14 วันหลังกิจกรรมหลัก" };
+const OUTCOME = { used: ["ใช้แล้ว", "ok"], not_yet: ["ยังไม่ได้ใช้", "none"], stuck: ["ติดปัญหา", "urgent"] };
+
+function renderWeekControls(r) {
+  const sel = $("weekSelect");
+  const cur = Math.min(Math.max(num(r.current_week), 1), 6);
+  if (sel.options.length !== cur) {
+    sel.replaceChildren(...Array.from({ length: cur }, (_, i) => h("option", { value: String(i + 1) })));
+  }
+  for (let i = 0; i < cur; i++) {
+    const w = i + 1;
+    setText(sel.options[i], "สัปดาห์ที่ " + w + (w > 4 ? " (ติดตามผล)" : w === cur ? " (สัปดาห์นี้)" : ""));
+  }
+  sel.value = String(r.week);
+  sel.disabled = S.weekLoading;
+  const wc = WEEK_CHIP[r.status] || WEEK_CHIP.closed;
+  const chipEl = $("weekChip");
+  chipEl.className = "chip " + wc[1];
+  setText(chipEl, wc[0]);
+  chipEl.hidden = false;
+  const reg = num(r.registered), inc = num(r.onboarding_incomplete), aw = num(r.awaiting_consent);
+  setText($("regLine"), reg === 0 && !inc && !aw ? "ยังไม่มีผู้เรียนลงทะเบียน"
+    : reg === 0 ? "ยังไม่มีผู้เรียนลงทะเบียน (ยังไม่จบขั้นตอน " + inc + " · ยังไม่ยินยอม " + aw + ")"
+      : "ลงทะเบียนแล้ว " + reg + " คน (ยังไม่จบขั้นตอน " + inc + " · ยังไม่ยินยอม " + aw + ")");
+}
+
+async function changeWeek(n) {
+  if (S.weekLoading || !S.report) return;
+  const sess = sessionId, sel = $("weekSelect"), note = $("weekLoading");
+  S.weekLoading = true; sel.disabled = true;
+  setText(note, "กำลังโหลดสัปดาห์ที่ " + n + "..."); note.hidden = false;
+  try {
+    const r = await api("/api/report?week=" + encodeURIComponent(n));
+    if (sess !== sessionId) return;
+    S.report = r; S.reportWeek = n; S.nrShown = PAGE; S.sig = sigNow();
+  } catch (e) {
+    if (sess !== sessionId) return;
+    showBanner("โหลดข้อมูลสัปดาห์ที่ " + n + " ไม่สำเร็จ (" + e.message + ")");
+  } finally {
+    if (sess === sessionId) { S.weekLoading = false; note.hidden = true; renderOverview(); sel.focus({ preventScroll: true }); }
+  }
+}
+
+function chartA(r) {
+  const elig = num(r.eligible), rep = num(r.reported), notRep = Math.max(elig - rep, 0);
+  const card = h("div", { class: "chartcard" }, h("h3", { text: "รายงานแล้วกี่คน" }));
+  if (elig === 0) {
+    card.append(h("p", { class: "strong", text: "ยังไม่มีผู้เรียนที่ต้องรายงานในสัปดาห์นี้" }));
+    return { card, hasData: false };
+  }
+  if (rep === 0) {
+    card.append(h("p", { class: "strong", text: "ยังไม่มีใครรายงาน" }), h("p", { class: "big", text: "0 จาก " + elig + " คน" }));
+    if (r.status === "open") card.append(h("p", { class: "note", text: "สัปดาห์นี้ยังเปิดรับรายงาน" }));
+    card.append(h("p", { class: "small", text: "ขอให้ทีมติดต่อ " + num(r.wants_contact) + " คน" }));
+    return { card, hasData: false };
+  }
+  const pct = pctText(rep, elig);
+  const label = "รายงานแล้ว " + rep + " จาก " + elig + " คน คิดเป็น " + pct + " ยังไม่รายงาน " + notRep + " คน";
+  card.append(
+    h("div", { class: "donutwrap" },
+      donut(rep, elig, label, pct),
+      h("div", null, h("p", { class: "big", text: "รายงานแล้ว " + rep + " จาก " + elig + " คน" }), h("p", { class: "muted", text: "คิดเป็น " + pct }))),
+    legendTable(label, [
+      { kind: "ok", label: "รายงานแล้ว", n: rep, total: elig, unit: "คน" },
+      { kind: "attn", label: "ยังไม่รายงาน", n: notRep, total: elig, unit: "คน" },
+    ]),
+    h("p", { class: "note", text: "ตัวเลขเปอร์เซ็นต์ปัดเศษ" }));
+  return { card, hasData: true };
+}
+function chartB(r) {
+  const rep = num(r.reported), p = r.progress || {};
+  const keys = ["done", "doing", "not_started", "stuck"];
+  const parts = keys.map((k) => ({ kind: PROGRESS[k][1], n: num(p[k]) }));
+  const label = "ความคืบหน้าของผู้ที่รายงาน " + rep + " คน: " + keys.map((k) => PROGRESS[k][0] + " " + num(p[k]) + " คน").join(", ");
+  return h("div", { class: "chartcard" }, h("h3", { text: "ความคืบหน้าของผู้ที่รายงาน" }),
+    stackBar(parts, label, 28),
+    legendTable(label, keys.map((k) => ({ kind: PROGRESS[k][1], label: PROGRESS[k][0], n: num(p[k]), total: rep, unit: "คน", hot: k === "stuck" && num(p[k]) > 0 }))),
+    h("p", { class: "note", text: "ตัวเลขเปอร์เซ็นต์ปัดเศษ" }));
+}
+function chartC(r) {
+  const agg = {};
+  Object.keys(r.blockers || {}).forEach((k) => { const key = BLOCKER_NAME[k] ? k : "other"; agg[key] = (agg[key] || 0) + num(r.blockers[k]); });
+  const rows = BLOCKER_ORDER.filter((k) => agg[k] > 0).sort((a, b) => agg[b] - agg[a] || BLOCKER_ORDER.indexOf(a) - BLOCKER_ORDER.indexOf(b));
+  const total = rows.reduce((a, k) => a + agg[k], 0);
+  const card = h("div", { class: "chartcard" }, h("h3", { text: "สาเหตุที่ติดขัด" }));
+  if (!total) { card.append(h("p", { class: "strong", text: "ไม่มีใครระบุสาเหตุที่ติดขัด" })); return card; }
+  card.append(h("p", { class: "small muted", text: "จากผู้ที่ระบุสาเหตุ " + total + " คน (เฉพาะผู้ที่ติดอยู่หรือยังไม่ได้เริ่ม)" }),
+    h("ul", { class: "ranklist", "aria-label": "สาเหตุที่ติดขัด เรียงจากมากไปน้อย รวม " + total + " คน" }, rows.map((k) => {
+      const n = agg[k], lab = BLOCKER_NAME[k] + " " + n + " จาก " + total + " คน";
+      const bar = s("svg", { viewBox: "0 0 320 14", class: "chart-svg", role: "img", "aria-label": lab, preserveAspectRatio: "xMinYMid meet" },
+        s("rect", { class: "track", x: 0, y: 0, width: 320, height: 14, rx: 4 }),
+        segGroup("info", 0, 0, Math.max((320 * n) / total, 6), 14, 4));
+      return h("li", null, h("div", { class: "rank-top" }, h("span", { text: BLOCKER_NAME[k] }), h("span", { text: n + " จาก " + total + " คน (" + pctText(n, total) + ")" })), bar);
+    })),
+    h("p", { class: "note", text: "ตัวเลขเปอร์เซ็นต์ปัดเศษ" }));
+  return card;
+}
+
+function silentText(n, status) {
+  const k = num(n.silent_weeks);
+  if (status === "open") return (k ? "สัปดาห์ก่อนหน้าไม่ส่งมา " + k + " สัปดาห์ติด · " : "") + "สัปดาห์นี้ยังไม่ส่ง";
+  return "ไม่ส่งมา " + k + " สัปดาห์ติด";
+}
+function notReportedBody(r, dup) {
+  const rows = Array.isArray(r.not_reported) ? r.not_reported : [];
+  const wrap = h("div", { class: "list" },
+    h("p", { class: "small muted", text: 'รายการนี้ดูเฉพาะว่าใครยังไม่ส่งรายงานของสัปดาห์ที่เลือก ส่วนแท็บ "ผู้เรียนที่ต้องตาม" รวมหลายเหตุผลเข้าด้วยกัน' }),
+    h("a", { class: "btn small", href: "#/learners", "data-fk": "nr-link", text: "ไปที่ผู้เรียนที่ต้องตาม" }));
+  if (!rows.length) {
+    wrap.append(emptyBox("ทุกคนส่งรายงานแล้ว", r.status === "open" ? "ตอนนี้ครบทุกคนแล้ว แต่สัปดาห์นี้ยังเปิดรับอยู่" : ""));
+    return wrap;
+  }
+  const shown = rows.slice(0, S.nrShown);
+  const items = shown.map((n) => h("li", null, h("div", { class: "card cardnr " + (num(n.silent_weeks) >= 2 ? "nr-urgent" : "nr-attn") },
+    h("div", { class: "row" }, nameNode(n, "p"), whoLine(n, dup)),
+    h("p", { class: "small muted", text: silentText(n, r.status) + " · " + (n.last_report_week ? "รายงานล่าสุดสัปดาห์ที่ " + n.last_report_week : "ยังไม่เคยรายงาน") }))));
+  if (rows.length > shown.length) {
+    items.push(h("li", null, h("button", { class: "btn block", type: "button", "data-fk": "nr-more",
+      text: "แสดงเพิ่มอีก " + Math.min(PAGE, rows.length - shown.length) + " คน (เหลือ " + (rows.length - shown.length) + " คน)",
+      events: { click: () => { S.nrShown += PAGE; renderOverview(); focusKey("nr-more", false); } } })));
+  }
+  wrap.append(h("ul", { class: "list" }, items));
+  return wrap;
+}
+
+function helpChart(r) {
+  const hs = r.help || {}, by = hs.by_status || {};
+  const keys = ["waiting", "accepted", "replied", "closed"];
+  const total = keys.reduce((a, k) => a + num(by[k]), 0);
+  const od = num(hs.overdue);
+  const card = h("div", { class: "chartcard" }, h("h3", { text: "สถานะเรื่องขอความช่วยเหลือ" }),
+    h("p", { class: "note", text: "นับรวมทุกสัปดาห์ ไม่ขึ้นกับสัปดาห์ที่เลือก" }));
+  if (!total) { card.append(h("p", { class: "strong", text: "ยังไม่มีผู้เรียนส่งเรื่องขอความช่วยเหลือ" })); return card; }
+  const label = "เรื่องขอความช่วยเหลือรวม " + total + " เรื่อง: " + keys.map((k) => HSTATUS[k][0] + " " + num(by[k])).join(", ") + "; เกินกำหนดตอบ " + od + " เรื่อง";
+  const cats = hs.open_by_category || {};
+  card.append(
+    stackBar(keys.map((k) => ({ kind: HSTATUS[k][1], n: num(by[k]) })), label, 28),
+    legendTable(label, keys.map((k) => ({ kind: HSTATUS[k][1], label: HSTATUS[k][0], n: num(by[k]), total, unit: "เรื่อง" }))),
+    od > 0
+      ? h("div", { class: "hotbox" },
+        h("p", { class: "big", text: od + " เรื่อง" }),
+        h("p", { class: "strong", text: "เกินกำหนดตอบ" }),
+        h("p", { class: "small muted", text: "รอเกิน 1 วันทำการ (ไม่นับวันหยุดนักขัตฤกษ์) อยู่ในกลุ่มรอทีมรับเรื่อง" }),
+        h("a", { class: "btn small", href: "#/help", "data-fk": "to-overdue", text: "ดูเรื่องที่เกินกำหนด", events: { click: pickHelp("overdue") } }))
+      : h("div", { class: "hotbox zero" }, h("p", { class: "strong", text: "ไม่มีเรื่องเกินกำหนดตอบ" }),
+        h("p", { class: "small muted", text: "รอเกิน 1 วันทำการ (ไม่นับวันหยุดนักขัตฤกษ์)" })),
+    h("p", { class: "small muted", text: "ที่ยังไม่ปิดแยกตามหมวด: " + Object.keys(CATEGORY).map((k) => CATEGORY[k] + " " + num(cats[k])).join(" · ") }),
+    h("p", { class: "note", text: "ตัวเลขเปอร์เซ็นต์ปัดเศษ" }));
+  return card;
+}
+
+function followCard(kind, f) {
+  const title = FU_TITLE[kind];
+  const asked = num(f && f.asked), answered = num(f && f.answered), pending = num(f && f.pending);
+  const card = h("div", { class: "chartcard" }, h("h3", { text: title }));
+  if (!asked) { card.append(h("p", { class: "strong", text: "ยังไม่ได้ถามผู้เรียนในครั้งนี้" })); return card; }
+  const l1 = title + ": ถามแล้ว " + asked + " คน ตอบแล้ว " + answered + " คน ยังไม่ตอบ " + pending + " คน";
+  card.append(h("p", { class: "bartitle", text: "ใครตอบแล้วบ้าง" }),
+    stackBar([{ kind: "slate", n: answered }, { kind: "none", n: pending }], l1, 24),
+    legendTable(l1, [{ kind: "slate", label: "ตอบแล้ว", n: answered, total: asked, unit: "คน" }, { kind: "none", label: "ยังไม่ตอบ", n: pending, total: asked, unit: "คน" }]));
+  card.append(h("p", { class: "bartitle", text: "ผลที่ผู้ตอบบอกมา" }));
+  if (!answered) { card.append(h("p", { class: "muted", text: "ยังไม่มีผู้ตอบ" })); return card; }
+  const oc = (f && f.outcomes) || {};
+  const keys = ["used", "not_yet", "stuck"];
+  const l2 = title + " ผลของผู้ที่ตอบ " + answered + " คน: " + keys.map((k) => OUTCOME[k][0] + " " + num(oc[k])).join(", ");
+  card.append(stackBar(keys.map((k) => ({ kind: OUTCOME[k][1], n: num(oc[k]) })), l2, 24),
+    legendTable(l2, keys.map((k) => ({ kind: OUTCOME[k][1], label: OUTCOME[k][0], n: num(oc[k]), total: answered, unit: "คน" }))),
+    h("p", { class: "note", text: "ตัวเลขเปอร์เซ็นต์ปัดเศษ" }));
+  return card;
+}
+function followSummary(r) {
+  const f = r.followups || {};
+  return ["fu_mid", "fu_final"].map((k, i) => {
+    const asked = num(f[k] && f[k].asked);
+    return asked ? "ครั้งที่ " + (i + 1) + " ตอบแล้ว " + num(f[k].answered) + " จาก " + asked : "ครั้งที่ " + (i + 1) + " ยังไม่ได้ถาม";
+  }).join(" · ");
+}
+
+/* ---- trend across weeks 1-4 (reads /api/report?week=N for each week) ---- */
+async function loadTrend(quiet) {
+  if (S.trendLoading) return;
+  const sess = sessionId;
+  const last = Math.min(Math.max(S.currentWeek, 1), 4);
+  const weeks = Array.from({ length: last }, (_, i) => i + 1);
+  S.trendLoading = true;
+  if (!quiet && !S.trend) renderTrend();
+  const res = await Promise.allSettled(weeks.map((w) => api("/api/report?week=" + w)));
+  if (sess !== sessionId) return;
+  S.trendLoading = false;
+  S.trend = res.map((x, i) => ({ week: weeks[i], data: x.status === "fulfilled" ? x.value : null }));
+  renderTrend();
+}
+function stext(attrs, text) { const n = s("text", attrs); n.textContent = text; return n; }
+
+function renderTrend() {
+  const box = document.getElementById("trendBody");
+  if (!box) return;
+  if (!S.trend) { box.replaceChildren(h("p", { class: "muted", text: "กำลังโหลดข้อมูล..." })); return; }
+  const ok = S.trend.filter((t) => t.data && num(t.data.eligible) > 0);
+  const n = S.trend.length;
+  const desc = "แนวโน้มจำนวนผู้รายงานสัปดาห์ 1 ถึง " + n + ": " + S.trend.map((t) => !t.data ? "สัปดาห์ " + t.week + " โหลดไม่ได้"
+    : "สัปดาห์ " + t.week + " รายงาน " + num(t.data.reported) + " จาก " + num(t.data.eligible) + " คน").join(", ");
+  const table = h("table", { class: "legend" },
+    h("caption", { class: "sr", text: desc }),
+    h("thead", null, h("tr", null, ["สัปดาห์", "รายงานแล้ว", "ยังไม่รายงาน", "ติดอยู่"].map((c) => h("th", { scope: "col", text: c })))),
+    h("tbody", null, S.trend.map((t) => {
+      const d = t.data;
+      const cells = !d ? [h("td", { colspan: "3", text: "โหลดไม่ได้" })]
+        : !num(d.eligible) ? [h("td", { text: "-" }), h("td", { text: "-" }), h("td", { text: "-" })]
+          : [h("td", { text: String(num(d.reported)) }), h("td", { text: String(Math.max(num(d.eligible) - num(d.reported), 0)) }),
+            h("td", null, num(d.progress && d.progress.stuck) > 0 ? chip(["ติดอยู่ " + num(d.progress.stuck), "urgent"]) : "0")];
+      return h("tr", null, h("th", { scope: "row", text: "สัปดาห์ที่ " + t.week + (d && d.status === "open" ? " (ยังเปิดรับ)" : "") }), cells);
+    })));
+  const details = h("details", { class: "tbl" }, h("summary", { text: "ดูตัวเลขเป็นตาราง" }), table);
+  if (!ok.length) {
+    box.replaceChildren(h("p", { class: "strong", text: "ยังไม่มีข้อมูลผู้เรียนที่ต้องรายงานในสัปดาห์ที่ผ่านมา" }), details);
+    return;
+  }
+  const W = 520, top = 34, base = 154, padL = 36, plotH = base - top;
+  const maxE = Math.max(1, ...ok.map((t) => num(t.data.eligible)));
+  const step = (W - padL) / n, colW = Math.min(76, step - 28);
+  const yOf = (v) => base - (plotH * v) / maxE;
+  const svg = s("svg", { viewBox: "0 0 " + W + " 196", class: "chart-svg wide", role: "img", "aria-label": desc, preserveAspectRatio: "xMinYMid meet" },
+    s("line", { class: "gridline", x1: padL, y1: yOf(maxE), x2: W, y2: yOf(maxE) }),
+    stext({ class: "ylabel", x: padL - 6, y: yOf(maxE) + 4, "text-anchor": "end" }, String(maxE)),
+    stext({ class: "ylabel", x: padL - 6, y: base + 4, "text-anchor": "end" }, "0"),
+    s("line", { class: "baseline", x1: padL, y1: base, x2: W, y2: base }));
+  S.trend.forEach((t, i) => {
+    const x = padL + i * step + (step - colW) / 2;
+    svg.appendChild(stext({ class: "xlabel", x: x + colW / 2, y: base + 22, "text-anchor": "middle" }, "สัปดาห์ " + t.week + (t.data && t.data.status === "open" ? " (เปิดอยู่)" : "")));
+    if (!t.data || !num(t.data.eligible)) return;
+    const el = num(t.data.eligible), rp = Math.min(num(t.data.reported), el);
+    const hr = (plotH * rp) / maxE, hn = (plotH * (el - rp)) / maxE, open = t.data.status === "open";
+    if (hr > 0) svg.appendChild(segGroup("ok", x, base - hr, colW, hr, 3, open));
+    if (hn > 0) svg.appendChild(segGroup("attn", x, base - hr - hn, colW, hn, 3, open));
+    svg.appendChild(stext({ class: "vlabel", x: x + colW / 2, y: base - hr - hn - 8, "text-anchor": "middle" }, rp + "/" + el));
+  });
+  box.replaceChildren(
+    h("div", { class: "legendline small" }, h("span", { class: "sw" }, swatch("ok"), " รายงานแล้ว  "), h("span", { class: "sw" }, swatch("attn"), " ยังไม่รายงาน"),
+      null),
+    svg, details);
+}
+
+function stateCard(r) {
+  if (r.status === "followup") {
+    return h("div", { class: "chartcard span-all" },
+      h("h3", { text: "สัปดาห์ที่ " + r.week + " เป็นช่วงติดตามผล" }),
+      h("p", { text: "ช่วงนี้ไม่มีรายงานรายสัปดาห์ ผลติดตามหลังกิจกรรมหลักอยู่ด้านล่าง" }));
+  }
+  return h("div", { class: "chartcard span-all" }, h("h3", { text: "สัปดาห์ที่ " + r.week + " ยังไม่เริ่ม" }), h("p", { text: "ยังไม่มีรายงานให้ดู" }));
+}
+
+/* ---- KPI tiles: the few numbers to read first ---- */
+function meterBar(n, total, label) {
+  const w = total > 0 ? Math.min(100, (100 * n) / total) : 0;
+  return s("svg", { class: "meter", viewBox: "0 0 100 6", role: "img", "aria-label": label, preserveAspectRatio: "none" },
+    s("rect", { class: "track", x: 0, y: 0, width: 100, height: 6, rx: 3 }),
+    w > 0 ? s("rect", { class: "fillbar", x: 0, y: 0, width: Math.max(w, 3), height: 6, rx: 3 }) : null);
+}
+function kpi(label, value, sub, tone, meter) {
+  return h("div", { class: "kpi" + (tone ? " tone-" + tone : "") },
+    h("p", { class: "k-label", text: label }), h("p", { class: "k-val", text: String(value) }), meter || null,
+    sub ? h("p", { class: "k-sub", text: sub }) : null);
+}
+function followAnswered(r) {
+  const f = r.followups || {};
+  const asked = ["fu_mid", "fu_final"].reduce((a, k) => a + num(f[k] && f[k].asked), 0);
+  const got = ["fu_mid", "fu_final"].reduce((a, k) => a + num(f[k] && f[k].answered), 0);
+  return { asked, got };
+}
+
+/* KPI tiles for one report: the few numbers to read first (used by the home summary and the overview) */
+function kpiTiles(r) {
+  const isFollow = r.status === "followup", isFuture = r.status === "future";
+  const hs = r.help || {}, by = hs.by_status || {};
+  const elig = num(r.eligible), rep = num(r.reported), notRep = Math.max(elig - rep, 0), od = num(hs.overdue);
+  const odTile = kpi("เกินกำหนดตอบ", od + " เรื่อง", "รอเกิน 1 วันทำการ", od > 0 ? "urgent" : null);
+
+  let tiles;
+  if (isFollow || isFuture) {
+    const fa = followAnswered(r);
+    tiles = [kpi("เรื่องรอทีมรับ", num(by.waiting) + " เรื่อง", "ยังไม่มีใครรับเรื่อง", num(by.waiting) > 0 ? "attn" : null), odTile,
+      kpi("ตอบติดตามผลแล้ว", fa.asked ? fa.got + " จาก " + fa.asked + " คน" : "-", fa.asked ? "ถามแล้ว " + fa.asked + " คน" : "ยังไม่ได้ถามผู้เรียน")];
+  } else {
+    const pct = pctText(rep, elig);
+    const avg = r.avg_confidence == null || !Number.isFinite(Number(r.avg_confidence)) ? "-" : Number(r.avg_confidence) + " / 5";
+    tiles = [
+      kpi("รายงานแล้ว", elig ? pct : "-", elig ? "รายงานแล้ว " + rep + " จาก " + elig + " คน" : "ยังไม่มีผู้เรียนที่ต้องรายงาน", null,
+        elig ? meterBar(rep, elig, "รายงานแล้ว " + rep + " จาก " + elig + " คน คิดเป็น " + pct) : null),
+      kpi("ยังไม่ได้รายงาน", notRep + " คน", r.status === "open" ? "สัปดาห์นี้ยังเปิดรับรายงาน" : "ปิดรับรายงานแล้ว", r.status === "closed" && notRep > 0 ? "attn" : null),
+      kpi("ความมั่นใจเฉลี่ย", avg, rep ? "จากผู้ที่รายงาน " + rep + " คน" : "ยังไม่มีผู้รายงาน"),
+      kpi("ขอให้ทีมติดต่อ", num(r.wants_contact) + " คน", "เลือก 'ได้เลย' ตอนรายงาน"),
+      odTile];
+  }
+  return tiles;
+}
+
+/* home: this week's picture under the three action cards */
+function homeSummary() {
+  const r = S.report;
+  if (!r || r.status === "future") return null;
+  const grid = h("div", { class: "dgrid" });
+  if (r.status === "followup") grid.append(helpChart(r));
+  else {
+    const a = chartA(r);
+    grid.append(a.card);
+    if (a.hasData) grid.append(chartB(r));
+    grid.append(helpChart(r));
+  }
+  return h("section", { class: "dash", "aria-labelledby": "h-home-sum" },
+    h("h3", { id: "h-home-sum", class: "groupHead", text: "สรุปสัปดาห์ที่ " + r.week }),
+    h("div", { class: "kpis" }, kpiTiles(r)), grid);
+}
+
+function renderOverview() {
+  const box = $("ovBody");
+  if (!S.loaded || !S.report) { const l = loadingBox(); if (l) box.replaceChildren(l); else clear(box); return; }
+  const r = S.report, dup = dupNames();
+  renderWeekControls(r);
+  const isFollow = r.status === "followup", isFuture = r.status === "future";
+  const hs = r.help || {}, by = hs.by_status || {};
+  const elig = num(r.eligible), rep = num(r.reported), notRep = Math.max(elig - rep, 0), od = num(hs.overdue);
+  const tiles = kpiTiles(r);
+
+  const grid = h("div", { class: "dgrid" });
+  const fuNode = h("div", { class: "span2" }, h("div", { class: "cg two" },
+    followCard("fu_mid", (r.followups || {}).fu_mid), followCard("fu_final", (r.followups || {}).fu_final)));
+  const trendCard = h("div", { class: "chartcard span2" }, h("h3", { text: "แนวโน้มผู้รายงานรายสัปดาห์" }),
+    h("p", { class: "note", text: "นับจากสัปดาห์ที่ 1 ถึงสัปดาห์ปัจจุบัน (ไม่เกินสัปดาห์ที่ 4)" }), h("div", { id: "trendBody" }));
+  const rows = Array.isArray(r.not_reported) ? r.not_reported : [];
+  if (isFollow || isFuture) {
+    grid.append(stateCard(r), fuNode, helpChart(r), trendCard);
+  } else {
+    const a = chartA(r);
+    grid.append(a.card);
+    if (a.hasData) grid.append(chartB(r), chartC(r));
+    grid.append(trendCard, helpChart(r), fuNode,
+      h("div", { class: "chartcard" }, h("h3", { text: "ยังไม่ได้รายงาน (" + rows.length + " คน)" }), notReportedBody(r, dup)));
+  }
+  keepView(() => box.replaceChildren(...[projectStrip(), h("div", { class: "kpis" }, tiles), grid].filter(Boolean)));
+  renderTrend();
+}
+
+/* ============ settings: CSV export ============ */
+const EXPORTS = [
+  { kind: "learners", name: "รายชื่อผู้เรียนและระดับที่ต้องตาม", desc: "ผู้เรียนทุกคนพร้อมระดับและเหตุผล" },
+  { kind: "checkins", name: "รายงานความคืบหน้ารายสัปดาห์", desc: "คำตอบรายงานของทุกสัปดาห์" },
+  { kind: "help", name: "เรื่องขอความช่วยเหลือ", desc: "ทุกเรื่องและสถานะ" },
+  { kind: "followups", name: "ผลติดตามหลังกิจกรรม (14 วัน)", desc: "คำตอบจากการถามติดตามผล 2 ครั้ง" },
+];
+function setStatus(node, kind, text) {
+  node.className = "status" + (kind ? " " + kind : "");
+  node.textContent = "";
+  if (kind === "bad") node.append(h("span", { class: "mark bad", "aria-hidden": "true", text: "!" }));
+  if (kind === "good") node.append(h("span", { class: "mark good", "aria-hidden": "true", text: "✓" }));
+  node.append(h("span", { text: text }));
+}
+function resetExportButtons() {
+  document.querySelectorAll("#exportList button").forEach((b) => { b.disabled = false; b.textContent = "ดาวน์โหลด"; });
+}
+function buildExportList() {
+  $("exportList").replaceChildren(...EXPORTS.map((ex) => {
+    const btn = h("button", { class: "btn", type: "button", "data-fk": "ex-" + ex.kind, text: "ดาวน์โหลด", "aria-label": "ดาวน์โหลด " + ex.name });
+    btn.addEventListener("click", () => downloadCsv(ex, btn));
+    return h("div", { class: "exrow" }, h("div", null, h("p", { class: "n", text: ex.name }), h("p", { class: "small muted", text: ex.desc })), btn);
+  }));
+}
+async function downloadCsv(ex, btn) {
+  if (btn.disabled) return;
+  const sess = sessionId, status = $("exportStatus");
+  btn.disabled = true; btn.textContent = "กำลังดาวน์โหลด...";
+  try {
+    let res;
+    try {
+      res = await fetch("/api/export.csv?kind=" + encodeURIComponent(ex.kind), { cache: "no-store" });
+    } catch (e) { throw new ApiError(MSG.network, 0, "network"); }
+    if (!res.ok) throw new ApiError("ดาวน์โหลดไม่สำเร็จ ลองใหม่อีกครั้ง", res.status, "");
+    const blob = await res.blob();
+    const url = URL.createObjectURL(blob);
+    const a = h("a", { href: url, download: "tiis-" + ex.kind + ".csv" });
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1500);
+    if (sess === sessionId) { setStatus(status, "good", "ดาวน์โหลดแล้ว: " + ex.name); announce("ดาวน์โหลดแล้ว: " + ex.name); }
+  } catch (e) {
+    if (sess === sessionId) {
+      const text = e.code === "network" ? e.message : "ดาวน์โหลดไม่สำเร็จ ลองใหม่อีกครั้ง";
+      setStatus(status, "bad", text); announce(text);
+    }
+  } finally {
+    if (sess === sessionId) { btn.disabled = false; btn.textContent = "ดาวน์โหลด"; }
+  }
+}
+
+/* ============ settings: weekly task editor (built once, never rebuilt by a refresh) ============ */
+const TASK_ERR = {
+  title_required: "บันทึกไม่สำเร็จ: กรุณากรอกหัวข้อ",
+  title_too_long: "บันทึกไม่สำเร็จ: หัวข้อยาวเกิน 120 ตัวอักษร",
+  description_too_long: "บันทึกไม่สำเร็จ: คำอธิบายยาวเกิน 500 ตัวอักษร",
+};
+function taskErrText(e) {
+  if (TASK_ERR[e.code]) return TASK_ERR[e.code];
+  if (e instanceof ApiError && e.code !== "network" && THAI_RE.test(e.message)) return "บันทึกไม่สำเร็จ: " + e.message;
+  return "บันทึกไม่สำเร็จ: " + (THAI_RE.test(e.message) ? e.message : MSG.generic);
+}
+function taskItem(t) {
+  const week = t.week;
+  const idT = "tk-title-" + week, idD = "tk-desc-" + week;
+  const title = h("input", { id: idT, type: "text", maxlength: "120", autocomplete: "off", value: t.title || "" });
+  const desc = h("textarea", { id: idD, maxlength: "500", value: t.description || "" });
+  const cT = h("span", { class: "counter" }), cD = h("span", { class: "counter" });
+  const status = h("div", { class: "status", role: "status" });
+  const save = h("button", { class: "btn primary", type: "button", text: "บันทึก", "data-fk": "tk-save-" + week });
+  const count = () => { setText(cT, title.value.length + "/120"); setText(cD, desc.value.length + "/500"); };
+  count();
+  let saving = false;
+  const dirty = () => {
+    count();
+    if (!saving && status.textContent !== "ยังไม่ได้บันทึก") { setStatus(status, "", "ยังไม่ได้บันทึก"); status.classList.add("muted"); }
+  };
+  title.addEventListener("input", dirty);
+  desc.addEventListener("input", dirty);
+
+  const chipEl = h("span", { class: "chip info", text: "สัปดาห์ปัจจุบัน" });
+  chipEl.hidden = week !== S.currentWeek;
+  S.taskChips[week] = chipEl;
+  const acc = accordion({ key: "task-" + week, title: "สัปดาห์ที่ " + week + ": " + (t.title || ""), trunc: true,
+    defOpen: week === S.currentWeek, chip: chipEl,
+    body: h("div", { class: "formgrid" },
+      h("div", { class: "field" }, h("label", { for: idT, text: "หัวข้องาน (ไม่เกิน 120 ตัวอักษร)" }), title, cT),
+      h("div", { class: "field" }, h("label", { for: idD, text: "คำอธิบาย (ไม่เกิน 500 ตัวอักษร)" }), desc, cD),
+      h("div", { class: "saverow" }, save, status)) });
+
+  save.addEventListener("click", async () => {
+    if (saving) return;
+    saving = true; save.disabled = true; save.textContent = "กำลังบันทึก...";
+    setStatus(status, "", "กำลังบันทึก...");
+    const sess = sessionId;
+    try {
+      const r = await api("/api/tasks/" + week, { method: "PUT", body: JSON.stringify({ title: title.value, description: desc.value }) });
+      if (sess !== sessionId) return;
+      acc.setTitle("สัปดาห์ที่ " + week + ": " + ((r.task && r.task.title) || title.value.trim()));
+      setStatus(status, "good", "บันทึกแล้ว");
+      announce("บันทึกงานสัปดาห์ที่ " + week + " แล้ว");
+    } catch (e) {
+      if (sess !== sessionId) return;
+      setStatus(status, "bad", taskErrText(e));
+    } finally {
+      if (sess === sessionId) { saving = false; save.disabled = false; save.textContent = "บันทึก"; }
+    }
+  });
+  return acc.root;
+}
+function ensureTaskEditor() {
+  if (S.taskBuilt || !S.tasks.length) return;
+  S.taskBuilt = true;
+  $("taskList").replaceChildren(...S.tasks.map(taskItem));
+}
+function updateTaskChips() {
+  Object.keys(S.taskChips).forEach((w) => { S.taskChips[w].hidden = Number(w) !== S.currentWeek; });
+}
+
+/* ============ project start date ============ */
+function thaiDate(iso) {
+  const d = new Date(String(iso) + "T00:00:00Z");
+  return Number.isNaN(d.getTime()) ? "-" : d.toLocaleDateString("th-TH", { day: "numeric", month: "short", year: "numeric", timeZone: "UTC" });
+}
+function addDays(iso, n) {
+  const d = new Date(String(iso) + "T00:00:00Z");
+  if (Number.isNaN(d.getTime())) return "";
+  d.setUTCDate(d.getUTCDate() + n);
+  return d.toISOString().slice(0, 10);
+}
+function startStatusText(st) {
+  const start = thaiDate(st.project_start);
+  if (st.state === "not_started") {
+    return "โครงการยังไม่เริ่ม: เริ่มวันที่ " + start + " (อีก " + num(st.days_until_start) + " วัน) ก่อนถึงวันนั้นผู้เรียนยังทดลองรายงานได้ และข้อมูลจะนับเป็นสัปดาห์ที่ 1";
+  }
+  if (st.state === "main") {
+    return "โครงการเริ่มวันที่ " + start + " · วันนี้เป็นวันที่ " + num(st.day_no) + " (สัปดาห์ที่ " + num(st.week) + " จาก 6) · กิจกรรมหลักถึงวันที่ " + thaiDate(st.schedule && st.schedule.main_end);
+  }
+  if (st.state === "followup") {
+    return "ช่วงติดตามผล (สัปดาห์ที่ " + num(st.week) + " จาก 6) · โครงการจบวันที่ " + thaiDate(st.schedule && st.schedule.project_end);
+  }
+  return "โครงการจบแล้วเมื่อวันที่ " + thaiDate(st.schedule && st.schedule.project_end);
+}
+/* one line at the top of Home and Overview: where the project is today */
+function projectStrip() {
+  const st = S.settings;
+  if (!st || !st.project_start) return null;
+  const unset = st.start_is_set === false;
+  return h("div", { class: "pstrip" + (st.state === "not_started" || unset ? " tone-attn" : ""), role: "status" },
+    h("p", { class: "strong", text: startStatusText(st) }),
+    unset ? h("p", { class: "small", text: "ยังไม่ได้ตั้งวันเริ่มโครงการ ตอนนี้ใช้วันที่เริ่มต้นของระบบ" }) : null,
+    unset ? h("a", { class: "btn small", href: "#/settings", "data-fk": "set-start", text: "ตั้งวันเริ่มโครงการ" }) : null);
+}
+/* the schedule that follows from a start date (shown as a preview while typing, and for the saved date) */
+function scheduleRows(startIso, st) {
+  const mainDays = num(st && st.schedule && st.schedule.main_days) || 28, projDays = num(st && st.schedule && st.schedule.project_days) || 42;
+  const mainEnd = addDays(startIso, mainDays - 1), end = addDays(startIso, projDays - 1);
+  return [
+    ["กิจกรรมหลัก (สัปดาห์ที่ 1-4)", thaiDate(startIso) + " ถึง " + thaiDate(mainEnd)],
+    ["ช่วงติดตามผล (สัปดาห์ที่ 5-6)", thaiDate(addDays(mainEnd, 1)) + " ถึง " + thaiDate(end)],
+    ["ถามติดตามผลครั้งที่ 1", thaiDate(addDays(mainEnd, 7))],
+    ["ถามติดตามผลครั้งที่ 2 (14 วันหลังกิจกรรมหลักจบ)", thaiDate(addDays(mainEnd, 14))],
+    ["จบโครงการ", thaiDate(end)],
+  ];
+}
+const START_ERR = {
+  generic: "บันทึกไม่สำเร็จ: ลองใหม่อีกครั้ง",
+  empty: "กรุณาเลือกวันที่",
+  invalid: "บันทึกไม่สำเร็จ: วันที่ไม่ถูกต้องหรืออยู่นอกช่วงที่รับได้ (ปี 2020 ถึง 2100)",
+};
+const startRefs = {};
+function ensureStartEditor() {
+  if (S.startBuilt || !S.settings) return;
+  S.startBuilt = true;
+  const box = $("startBox");
+  const input = h("input", { id: "startDate", type: "date", min: "2020-01-01", max: "2100-12-31", value: S.settings.project_start });
+  const save = h("button", { class: "btn primary", type: "button", text: "บันทึกวันเริ่มโครงการ", "data-fk": "start-save" });
+  const status = h("div", { class: "status", role: "status" });
+  const now = h("p", { class: "strong", id: "startNow" });
+  const unset = h("p", { class: "warnline", id: "startUnset", hidden: true });
+  const sched = h("div", { id: "startSched" });
+  const confirm = h("div", { class: "confirm", id: "startConfirm", role: "alertdialog", "aria-labelledby": "startConfirmT", hidden: true });
+  Object.assign(startRefs, { input, save, status, now, unset, sched, confirm, dirty: false, saving: false });
+
+  const drawSched = (iso) => {
+    sched.replaceChildren(h("table", { class: "legend" },
+      h("caption", { class: "sr", text: "ตารางเวลาของโครงการเมื่อเริ่มวันที่ " + thaiDate(iso) }),
+      h("tbody", null, scheduleRows(iso, S.settings).map((r) => h("tr", null, h("th", { scope: "row", text: r[0] }), h("td", { text: r[1] }))))));
+  };
+  startRefs.drawSched = drawSched;
+  drawSched(S.settings.project_start);
+
+  input.addEventListener("input", () => {
+    startRefs.dirty = true;
+    confirm.hidden = true;
+    if (input.value) {
+      drawSched(input.value);
+      setStatus(status, "", "ยังไม่ได้บันทึก"); status.classList.add("muted");
+    }
+  });
+  async function doSave(confirmShift) {
+    if (startRefs.saving) return;
+    if (!input.value) { setStatus(status, "bad", START_ERR.empty); input.focus(); return; }
+    startRefs.saving = true; save.disabled = true; save.textContent = "กำลังบันทึก...";
+    setStatus(status, "", "กำลังบันทึก...");
+    try {
+      const body = { project_start: input.value };
+      if (confirmShift) body.confirm_shift = true;
+      const r = await api("/api/settings", { method: "PUT", body: JSON.stringify(body) });
+      S.settings = r; startRefs.dirty = false; confirm.hidden = true;
+      S.trend = null; S.sig = "";
+      setStatus(status, "good", "บันทึกแล้ว: โครงการเริ่มวันที่ " + thaiDate(r.project_start));
+      announce("บันทึกวันเริ่มโครงการแล้ว");
+      updateStartInfo();
+      loadAll("manual");
+    } catch (e) {
+      if (e.code === "reports_exist") {
+        setStatus(status, "", "");
+        showStartConfirm();
+      } else {
+        setStatus(status, "bad", e.status === 400 ? START_ERR.invalid : START_ERR.generic);
+      }
+    } finally {
+      startRefs.saving = false; save.disabled = false; save.textContent = "บันทึกวันเริ่มโครงการ";
+    }
+  }
+  function showStartConfirm() {
+    confirm.replaceChildren(
+      h("h4", { id: "startConfirmT", text: "มีผู้เรียนรายงานแล้ว เปลี่ยนวันเริ่มต่อไหม" }),
+      h("p", { text: "การเลื่อนวันเริ่มจะทำให้สัปดาห์ของรายงานที่ส่งไปแล้วเปลี่ยนความหมาย (รายงานที่เคยเป็นสัปดาห์ที่ 1 ยังคงถูกนับเป็นสัปดาห์ที่ 1 แต่ตรงกับช่วงวันที่ใหม่) ควรเปลี่ยนเฉพาะตอนที่ตั้งผิด" }),
+      h("div", { class: "actions" },
+        h("button", { class: "btn", type: "button", "data-fk": "start-cancel", text: "ไม่เปลี่ยน",
+          events: { click: () => { input.value = S.settings.project_start; startRefs.dirty = false; drawSched(input.value); confirm.hidden = true; setStatus(status, "", ""); input.focus(); } } }),
+        h("button", { class: "btn danger-solid", type: "button", "data-fk": "start-confirm", text: "เปลี่ยนวันเริ่ม", events: { click: () => doSave(true) } })));
+    confirm.hidden = false;
+    confirm.querySelector("button").focus();
+  }
+  save.addEventListener("click", () => doSave(false));
+
+  box.replaceChildren(
+    h("h3", { id: "h-start", text: "วันเริ่มโครงการ" }),
+    h("p", { class: "small muted", text: "ตั้งวันแรกของโครงการ 6 สัปดาห์ ระบบจะคำนวณสัปดาห์ที่ 1-6 ข้อความเริ่มสัปดาห์ และวันถามติดตามผลจากวันนี้" }),
+    now, unset,
+    h("div", { class: "rowfields" }, h("div", { class: "field" }, h("label", { for: "startDate", text: "วันเริ่มโครงการ" }), input), save),
+    status, confirm,
+    h("h4", { text: "ตารางเวลาที่ได้" }), sched);
+}
+/* refresh: update the texts, never the date the user is typing */
+function updateStartInfo() {
+  const st = S.settings;
+  if (!S.startBuilt || !st) return;
+  setText(startRefs.now, startStatusText(st));
+  const unset = st.start_is_set === false;
+  startRefs.unset.hidden = !unset;
+  if (unset) setText(startRefs.unset, "ยังไม่ได้ตั้งวันเริ่มโครงการ ตอนนี้ระบบใช้วันที่เริ่มต้น " + thaiDate(st.project_start) + " กดบันทึกเพื่อยืนยันวันที่ที่ต้องการ");
+  if (!startRefs.dirty && document.activeElement !== startRefs.input && startRefs.input.value !== st.project_start) {
+    startRefs.input.value = st.project_start;
+    startRefs.drawSched(st.project_start);
+  }
+}
+
+/* ============ render everything from state ============ */
+function renderAll() {
+  keepView(() => {
+    renderNav();
+    renderHome();
+    renderLearners();
+    renderHelp();
+    renderOverview();
+  });
+}
+
+/* ============ wire up and start ============ */
+function init() {
+  document.querySelectorAll("[data-theme-set]").forEach((b) => b.addEventListener("click", () => chooseTheme(b.getAttribute("data-theme-set"))));
+  window.matchMedia("(prefers-color-scheme: dark)").addEventListener("change", syncThemeButtons);
+  syncThemeButtons();
+  buildExportList();
+  $("refreshBtn").addEventListener("click", () => loadAll("manual"));
+  $("bannerRetry").addEventListener("click", () => loadAll("retry"));
+  $("skip").addEventListener("click", (e) => { e.preventDefault(); $("main").focus(); });
+  $("lrnSearch").addEventListener("input", (e) => { S.lrnQuery = e.target.value; S.lrnShown = PAGE; renderLearners(); });
+  $("lrnHide").addEventListener("change", (e) => { S.lrnHideNormal = e.target.checked; S.lrnShown = PAGE; renderLearners(); });
+  $("helpFilter").addEventListener("change", (e) => { S.helpFilter = e.target.value; S.helpShown = PAGE; renderHelp(); });
+  $("weekSelect").addEventListener("change", (e) => changeWeek(Number(e.target.value)));
+  window.addEventListener("hashchange", () => { if (!$("appView").hidden) syncRoute(true); });
+  document.addEventListener("visibilitychange", () => {
+    if (!document.hidden && S.loaded && S.updatedAt && Date.now() - S.updatedAt.getTime() > REFRESH_MS) loadAll("auto");
+  });
+  syncRoute(false);
+  renderAll();
+  loadAll("first");
+  startTimer();
+}
+init();
 </script>
 </body>
 </html>

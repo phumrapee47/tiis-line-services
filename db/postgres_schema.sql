@@ -43,6 +43,14 @@ CREATE TABLE weekly_tasks (
   updated_at   TIMESTAMPTZ NOT NULL DEFAULT now()
 );
 
+-- the project start date: one row at most (id can only be true). No row = the team has not set it yet.
+CREATE TABLE project_config (
+  id          BOOLEAN PRIMARY KEY DEFAULT true CHECK (id),
+  start_date  DATE NOT NULL CHECK (start_date BETWEEN DATE '2020-01-01' AND DATE '2100-12-31'),
+  created_at  TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at  TIMESTAMPTZ NOT NULL DEFAULT now()
+);
+
 CREATE TABLE checkins (
   user_id        UUID NOT NULL REFERENCES users (id) ON DELETE CASCADE,
   week           SMALLINT NOT NULL REFERENCES weekly_tasks (week),
@@ -127,10 +135,12 @@ CREATE TABLE outbox (
 CREATE INDEX idx_outbox_pending ON outbox (user_id, id) WHERE delivered_at IS NULL;
 
 CREATE TRIGGER trg_users_updated BEFORE UPDATE ON users FOR EACH ROW EXECUTE FUNCTION update_updated_at();
+CREATE TRIGGER trg_project_config_updated BEFORE UPDATE ON project_config FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER trg_tasks_updated BEFORE UPDATE ON weekly_tasks FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER trg_checkins_updated BEFORE UPDATE ON checkins FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 CREATE TRIGGER trg_help_updated BEFORE UPDATE ON help_requests FOR EACH ROW EXECUTE FUNCTION update_updated_at();
 
+ALTER TABLE project_config     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE users            ENABLE ROW LEVEL SECURITY;
 ALTER TABLE weekly_tasks     ENABLE ROW LEVEL SECURITY;
 ALTER TABLE checkins         ENABLE ROW LEVEL SECURITY;

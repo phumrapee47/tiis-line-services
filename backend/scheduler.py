@@ -2,14 +2,17 @@
 so calling it several times a day never double-sends. Messages go to the outbox."""
 from datetime import timedelta
 
+from . import config
 from . import messages as M
-from .config import (FOLLOWUP_MIN_DAYS, MAIN_ACTIVITY_END, PROJECT_DAYS, PROJECT_END,
-                     PROJECT_START, MAIN_ACTIVITY_DAYS, today as default_today)
+from .config import today as default_today
 
-MAIN_WEEKS = MAIN_ACTIVITY_DAYS // 7
-# follow-up touchpoints: halfway and at the 14-day mark after the main activity ends
-FOLLOWUPS = {"fu_mid": MAIN_ACTIVITY_END + timedelta(days=FOLLOWUP_MIN_DAYS // 2),
-             "fu_final": MAIN_ACTIVITY_END + timedelta(days=FOLLOWUP_MIN_DAYS)}
+MAIN_WEEKS = config.MAIN_ACTIVITY_DAYS // 7
+
+
+def __getattr__(name):  # scheduler.FOLLOWUPS follows the current start date
+    if name == "FOLLOWUPS":
+        return config.followup_dates()
+    raise AttributeError(name)
 
 
 def run_scheduled(db, today=None):
@@ -19,7 +22,7 @@ def run_scheduled(db, today=None):
     with db.lock:
         users = [u for u in db.all_users() if u["nickname"] and u["state"] != "consent"]
         for w in range(1, MAIN_WEEKS + 1):
-            start = PROJECT_START + timedelta(days=7 * (w - 1))
+            start = config.PROJECT_START + timedelta(days=7 * (w - 1))
             if today == start:  # first day of the week: everyone
                 for u in users:
                     if db.mark_push(u["user_id"], "weekly_start", w):
@@ -30,8 +33,8 @@ def run_scheduled(db, today=None):
                     if w not in db.checkin_weeks(u["user_id"]) and db.mark_push(u["user_id"], "nudge", w):
                         db.add_outbox(u["user_id"], [M.nudge(w, db.get_task(w))])
                         sent.append((u["user_id"], "nudge"))
-        for kind, due in FOLLOWUPS.items():
-            if due <= today <= PROJECT_END:  # catch up if the run was missed
+        for kind, due in config.followup_dates().items():
+            if due <= today <= config.project_end():  # catch up if the run was missed
                 for u in users:
                     # only interrupt a learner who is idle; others get it on the next run
                     if u["state"] == "idle" and db.mark_push(u["user_id"], kind, "1"):

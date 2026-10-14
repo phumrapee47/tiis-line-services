@@ -29,6 +29,11 @@ CREATE TABLE IF NOT EXISTS weekly_tasks (
     week INTEGER PRIMARY KEY CHECK (week BETWEEN 1 AND 4),
     title TEXT NOT NULL, description TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL
 );
+CREATE TABLE IF NOT EXISTS project_config (
+    id INTEGER PRIMARY KEY CHECK (id = 1),
+    start_date TEXT NOT NULL CHECK (start_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+    updated_at TEXT NOT NULL
+);
 CREATE TABLE IF NOT EXISTS events (event_id TEXT PRIMARY KEY, received_at TEXT NOT NULL);
 CREATE TABLE IF NOT EXISTS outbox (
     id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL,
@@ -69,6 +74,17 @@ class Database:
             if column not in cols:
                 self.conn.execute(f"ALTER TABLE {table} ADD COLUMN {column} {ddl}")
         self.conn.commit()
+        # files from the first version kept the start date in a key/value table: move it over, then drop that table
+        old = self.conn.execute("SELECT 1 FROM sqlite_master WHERE type='table' AND name='settings'").fetchone()
+        if old:
+            row = self.conn.execute("SELECT value FROM settings WHERE key='project_start'").fetchone()
+            if row and not self.conn.execute("SELECT 1 FROM project_config").fetchone():
+                try:
+                    self.conn.execute("INSERT INTO project_config (id, start_date, updated_at) VALUES (1,?,?)", (row["value"], _now()))
+                except sqlite3.IntegrityError:
+                    pass  # not a date: the team just sets it again
+            self.conn.execute("DROP TABLE settings")
+            self.conn.commit()
 
     def _seed_tasks(self):
         if not self.conn.execute("SELECT 1 FROM weekly_tasks LIMIT 1").fetchone():
@@ -142,6 +158,20 @@ class Database:
                  task_title=excluded.task_title,
                  updated_at=excluded.updated_at""",
             (user_id, week, progress, confidence, blocker, int(wants_contact), task_title, now, now))
+
+    # the project start date
+    def get_project_start(self):
+        """ISO date string, or None while the team has not set one."""
+        rows = self._q("SELECT start_date FROM project_config")
+        return rows[0]["start_date"] if rows else None
+
+    def save_project_start(self, iso):
+        self._x("""INSERT INTO project_config (id, start_date, updated_at) VALUES (1,?,?)
+                   ON CONFLICT(id) DO UPDATE SET start_date=excluded.start_date, updated_at=excluded.updated_at""",
+                (str(iso), _now()))
+
+    def has_checkins(self):
+        return bool(self._q("SELECT 1 FROM checkins LIMIT 1"))
 
     # weekly tasks (set by the team)
     def get_task(self, week):

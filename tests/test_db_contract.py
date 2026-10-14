@@ -335,3 +335,52 @@ def test_postgres_refuses_unknown_user_and_unknown_fields_instead_of_silently_dr
         any_db.update_user("U1", state="idle")
     with pytest.raises(ValueError):
         any_db.update_help(1, detail="x")
+
+
+def test_project_start_is_stored_overwritten_and_reported_missing_until_set(any_db):
+    assert any_db.get_project_start() is None
+    any_db.save_project_start("2026-11-02")
+    assert any_db.get_project_start() == "2026-11-02"
+    any_db.save_project_start("2026-11-09")
+    assert any_db.get_project_start() == "2026-11-09"
+
+
+def test_postgres_enforces_one_row_and_a_real_date_in_range(any_db):
+    if not is_pg(any_db):
+        pytest.skip("Postgres-only: SQLite has a weaker pattern check")
+    any_db.save_project_start("2026-11-02")
+    for bad in ("2026-02-30", "1999-12-31", "2101-01-01", "not-a-date"):
+        with pytest.raises(Exception):
+            any_db.save_project_start(bad)
+    assert any_db.get_project_start() == "2026-11-02"                  # failed writes changed nothing
+    with pytest.raises(Exception):                                     # a second row cannot exist
+        any_db._run("INSERT INTO project_config (id, start_date) VALUES (false, '2026-12-01')")
+
+
+def test_sqlite_rejects_text_that_is_not_shaped_like_a_date(any_db):
+    if is_pg(any_db):
+        pytest.skip("SQLite-only pattern check")
+    for bad in ("tomorrow", "19/10/2026", "2026-1-5"):
+        with pytest.raises(Exception):
+            any_db.save_project_start(bad)
+
+
+def test_an_old_sqlite_file_with_the_key_value_settings_table_is_migrated(tmp_path):
+    import sqlite3
+    from backend.db import Database
+    path = tmp_path / "old_settings.db"
+    old = sqlite3.connect(path)
+    old.executescript("CREATE TABLE settings (key TEXT PRIMARY KEY, value TEXT NOT NULL, updated_at TEXT NOT NULL);"
+                      "INSERT INTO settings VALUES ('project_start', '2026-11-16', 't');")
+    old.commit()
+    old.close()
+    migrated = Database(str(path))
+    assert migrated.get_project_start() == "2026-11-16"
+    assert not migrated.conn.execute("SELECT 1 FROM sqlite_master WHERE name='settings'").fetchone()
+
+
+def test_has_checkins_flips_on_the_first_report(any_db):
+    add_user(any_db)
+    assert any_db.has_checkins() is False
+    any_db.upsert_checkin("U1", 1, "doing", 3, None, False, "งาน")
+    assert any_db.has_checkins() is True

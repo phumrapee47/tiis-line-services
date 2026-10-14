@@ -51,9 +51,9 @@ def test_failed_push_stays_queued_and_is_delivered_on_a_later_flush(app_client, 
     hid = _help_for(bot, db, "Ureal01")
     app_client.post(f"/api/help/{hid}/status", json={"status": "accepted"})
     assert len(db.pending_outbox("Ureal01")) == 1          # LINE refused: not lost
-    quiet_day = (START + timedelta(days=10)).isoformat()    # no reminder is due, so this call only flushes
-    assert app_client.post("/api/admin/run-scheduled", json={"today": quiet_day}).get_json()["queued"] == []
-    assert calls == ["Ureal01", "Ureal01"] and db.pending_outbox("Ureal01") == []
+    app_client.post(f"/api/help/{hid}/status", json={"status": "replied"})   # the next change flushes the outbox again
+    assert calls == ["Ureal01"] * 3                        # the failed one is retried, then the new one
+    assert db.pending_outbox("Ureal01") == []
 
 
 def test_simulated_users_are_never_pushed_to_line(app_client, bot, db, line_on, monkeypatch):
@@ -71,15 +71,14 @@ def test_nothing_is_pushed_when_line_is_not_configured(app_client, bot, db, monk
     assert len(db.pending_outbox("Ureal01")) == 1
 
 
-def test_reminders_reach_real_learners_through_the_run_scheduled_endpoint(app_client, bot, db, line_on, monkeypatch):
-    pushed = []
-    monkeypatch.setattr(line_adapter, "push", lambda uid, msgs, tok: pushed.append(uid) or True)
+def test_nobody_can_trigger_reminders_or_fake_learners_on_an_instance_that_can_reach_real_learners(
+        app_client, bot, db, line_on, monkeypatch):
+    monkeypatch.setattr(line_adapter, "push", lambda *a: pytest.fail("a visitor made the server message someone"))
     register(bot, "Ureal01", "เอ")
-    r = app_client.post("/api/admin/run-scheduled", json={"today": START.isoformat()})
-    assert r.get_json()["queued"] == [{"user_id": "Ureal01", "kind": "weekly_start"}]
-    assert pushed == ["Ureal01"] and db.pending_outbox("Ureal01") == []
-    again = app_client.post("/api/admin/run-scheduled", json={"today": START.isoformat()})
-    assert again.get_json()["queued"] == [] and pushed == ["Ureal01"]   # no second reminder
+    assert app_client.post("/api/admin/run-scheduled", json={"today": START.isoformat()}).status_code == 404
+    assert app_client.post("/api/sim/event", json={"user_id": "x", "type": "follow"}).status_code == 404
+    assert app_client.get("/api/sim/outbox?user_id=x").status_code == 404
+    assert db.pending_outbox("Ureal01") == []
 
 
 @pytest.mark.parametrize("body,status", [
