@@ -7,9 +7,8 @@ import pytest
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
 # backend.config reads these at import time; real environment variables win over .env
-for _key, _value in {"LINE_CHANNEL_SECRET": "", "LINE_CHANNEL_TOKEN": "", "TEAM_TOKEN": "", "DEMO_TODAY": "",
-                     "PROJECT_START": "2026-10-19", "DB_PATH": ":memory:", "DATABASE_URL": "",
-                     "TEAM_AUTH": "on"}.items():
+for _key, _value in {"LINE_CHANNEL_SECRET": "", "LINE_CHANNEL_TOKEN": "", "DEMO_TODAY": "",
+                     "PROJECT_START": "2026-10-19", "DB_PATH": ":memory:", "DATABASE_URL": ""}.items():
     os.environ[_key] = _value
 
 from backend import config  # noqa: E402
@@ -105,13 +104,10 @@ def bot(db, clock):
 
 
 @pytest.fixture
-def app_client(db, bot, monkeypatch):
-    """Flask test client with the team token already set (and sent on every request)."""
+def app_client(db, bot):
+    """Flask test client on the same database and bot (there is no login to satisfy)."""
     from backend.app import create_app
-    monkeypatch.setattr(config, "TEAM_TOKEN", "team-test-token")
-    client = create_app(db, bot).test_client()
-    client.environ_base["HTTP_X_TEAM_TOKEN"] = "team-test-token"
-    return client
+    return create_app(db, bot).test_client()
 
 
 def register(bot, uid="U1", nickname="เอ"):

@@ -66,23 +66,17 @@ def test_no_inline_event_handlers_or_javascript_urls():
     assert not re.search(r"\.on[a-z]+\s*=[^=]", JS), "element.onxxx = assignment in JS"
 
 
-def test_storage_is_sessionStorage_with_the_teamToken_key_only():
-    assert "localStorage" not in SRC and "document.cookie" not in SRC
-    assert "indexedDB" not in SRC and "serviceWorker" not in SRC and "caches." not in SRC
-    assert 'const TOKEN_KEY = "teamToken"' in JS
-    calls = re.findall(r"sessionStorage\.(\w+)\(([^)]*)\)", JS)
-    assert calls, "token is never stored in sessionStorage"
-    assert {m for m, _ in calls} <= {"getItem", "setItem", "removeItem"}
-    assert all(arg.startswith("TOKEN_KEY") for _, arg in calls), calls
-    assert len(re.findall(r"sessionStorage", JS)) == len(calls)   # no other way of touching it
+def test_page_stores_nothing_in_the_browser():
+    for banned in ("localStorage", "sessionStorage", "document.cookie", "indexedDB", "serviceWorker", "caches."):
+        assert banned not in SRC, banned
 
 
-def test_login_field_is_a_password_input_without_a_name_so_it_can_never_be_submitted_in_a_url():
-    m = re.search(r'<input id="teamCode"[^>]*>', HTML)
-    assert m and 'type="password"' in m.group(0)
-    assert not re.search(r"\sname=", m.group(0)), "a named field would be sent in the query string if JS failed"
-    form = re.search(r"<form[^>]*>", HTML).group(0)
-    assert "action=" not in form and "method=" not in form.replace("novalidate", "")
+def test_page_has_no_login_no_password_field_and_no_team_code():
+    for banned in ('type="password"', "loginView", "loginForm", "teamCode", "logoutBtn", "รหัสทีม", "เข้าสู่ระบบ",
+                   "ออกจากระบบ", "X-Team-Token", "teamToken", "getToken", "setToken", "AuthError", "forceLogin",
+                   "/api/session", "openNote", "โหมดเปิดสำหรับการตรวจงาน"):
+        assert banned not in SRC, banned
+    assert "<form" not in HTML, "nothing on the page is submitted"
 
 
 def test_no_external_urls_scripts_stylesheets_or_third_party_requests():
@@ -116,25 +110,10 @@ def test_nothing_secret_or_learner_related_goes_into_location_history_or_title()
         assert not re.search(r"nickname|display_name|detail|getToken", m.group(1)), m.group(0)
 
 
-def test_token_is_only_ever_read_for_the_header_or_for_presence_checks():
-    for line in JS.splitlines():
-        if "getToken()" in line and "function getToken" not in line:
-            assert re.search(r'"X-Team-Token"|if \(getToken\(\)\)|&& getToken\(\)|\|\| getToken\(\)', line), line.strip()
-        if "memToken" in line:
-            assert not re.search(r"textContent|location|history|title|\.value|announce|showBanner", line), line.strip()
-
-
-def test_every_server_call_goes_to_api_and_carries_the_team_header():
+def test_every_server_call_goes_to_api_and_sends_no_credentials():
     fetches = [m.start() for m in re.finditer(r"\bfetch\(", JS)]
-    assert len(fetches) == 3, "a new fetch() appeared: check it sends X-Team-Token, then update this test"
-    public = [pos for pos in fetches if JS[pos:pos + 40].startswith('fetch("/api/session"')]
-    assert len(public) == 1, "only GET /api/session may be called without the team header"
-    assert "X-Team-Token" not in JS[public[0]:public[0] + 120], "the public session probe must not send the token"
-    for pos in fetches:
-        if pos in public:
-            continue
-        window = JS[max(0, pos - 500):pos + 400]
-        assert '"X-Team-Token": getToken()' in window, JS[pos:pos + 120]
+    assert len(fetches) == 2, "a new fetch() appeared: check what it calls, then update this test"
+    assert not re.search(r"credentials\s*:", JS) and "Authorization" not in JS
     paths = re.findall(r"\bapi\(\s*([\"'][^\"']*[\"'])", JS)
     assert paths
     for p in paths:
@@ -176,7 +155,7 @@ def test_containers_for_learner_data_are_empty_in_the_served_html():
         m = re.search(r'id="%s"[^>]*>(.*?)</' % cid, HTML, re.S)
         assert m is not None, cid
         assert m.group(1).strip() == "", f"{cid} is not empty in the static HTML: {m.group(1)!r}"
-    assert '<div id="loginView" hidden>' in HTML and '<div id="appView" hidden>' in HTML
+    assert 'id="loginView"' not in HTML and '<div id="appView">' in HTML
 
 
 NAV_LABELS = ["หน้าแรก", "ผู้เรียนที่ต้องตาม", "เรื่องขอความช่วยเหลือ", "ภาพรวมรายสัปดาห์", "ตั้งค่างานและส่งออก"]
@@ -319,7 +298,7 @@ def test_four_csv_buttons_with_thai_names_and_backend_kinds():
     assert [k for k, _ in found] == list(reports.CSV_KINDS)
     assert 'download: "tiis-" + ex.kind + ".csv"' in JS
     assert "ดาวน์โหลดแล้ว: " in JS and "ดาวน์โหลดไม่สำเร็จ ลองใหม่อีกครั้ง" in JS
-    assert "res.status === 401" in block + JS[JS.index("async function downloadCsv"):][:900]
+    assert "res.status === 401" not in JS and "AuthError" not in JS      # no login, so no 401 handling
 
 
 def test_task_editor_markers():
@@ -342,20 +321,6 @@ def test_no_banned_words_in_text_the_user_can_read():
     tech = re.compile(r"^(/api/|X-Team-Token|teamToken$|.*\.ref$)")
     odd = [lit for lit in LITERALS if not THAI.search(lit) and banned.search(lit) and not tech.match(lit)]
     assert not odd, odd
-
-
-def test_login_wording_uses_team_code_not_token():
-    assert "รหัสทีม" in HTML and "เข้าสู่ระบบ" in HTML and "ออกจากระบบ" in HTML
-    assert "อัปเดตล่าสุด" in JS and "รีเฟรช" in HTML
-    assert "รหัสทีมไม่ถูกต้อง ลองใหม่อีกครั้ง" in JS and "รหัสทีมหมดอายุหรือไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่" in JS
-
-
-def test_logout_clears_the_token_and_every_learner_container():
-    fn = JS[JS.index("function destroyData"):JS.index("function showLogin")]
-    for cid in ("homeBody", "lrnSummary", "lrnList", "helpList", "ovBody", "taskList", "firstErr", "regLine"):
-        assert f'"{cid}"' in fn, cid
-    forced = JS[JS.index("function forceLogin"):JS.index("function logout")]
-    assert 'setToken("")' in forced and "S = freshState()" in forced and "destroyData()" in forced and "stopTimer()" in forced
 
 
 # =====================================================================================================
@@ -439,7 +404,7 @@ def test_css_basics_for_mobile_and_text_size():
 # =====================================================================================================
 @pytest.fixture
 def anon(app_client, db, bot):
-    """A second Flask client on the same data that sends no team token (the token is configured server-side)."""
+    """A second Flask client on the same data (a visitor with only the link)."""
     return create_app(db, bot).test_client()
 
 
@@ -464,12 +429,8 @@ def test_board_contains_no_learner_data_even_when_the_database_is_full(anon, bot
     # nothing is reflected from the query string either
     reflected = anon.get("/board?nickname=ZZREFLECT&token=ZZREFLECT").get_data(as_text=True)
     assert "ZZREFLECT" not in reflected
-    # and the data stays behind the token
-    assert anon.get("/api/triage").status_code == 401 and anon.get("/api/help").status_code == 401
-
-
-def test_board_page_ignores_a_token_header(app_client):
-    assert app_client.get("/board").status_code == 200   # the fixture sends the token: same page either way
+    # the data comes only from the API calls the page makes after it loads
+    assert anon.get("/api/triage").status_code == 200 and anon.get("/api/help").status_code == 200
 
 
 def test_other_routes_keep_their_behaviour(anon):
@@ -477,24 +438,16 @@ def test_other_routes_keep_their_behaviour(anon):
     assert r.status_code == 200 and r.get_json() == {"ok": True}
     assert anon.get("/no-such-page").status_code == 404
     assert anon.get("/webhook").status_code == 405
-    assert anon.get("/api/no-such-endpoint").status_code == 401        # the token gate still covers all of /api/
+    assert anon.get("/api/no-such-endpoint").status_code == 404
     assert anon.get("/board/").status_code == 404
     assert anon.post("/board").status_code == 405
 
 
 @pytest.mark.parametrize("path", ["/api/triage", "/api/help", "/api/tasks", "/api/report", "/api/report?week=1",
                                   "/api/followups", "/api/export.csv?kind=help"])
-def test_every_endpoint_the_page_calls_rejects_a_missing_or_wrong_token_with_401(anon, path):
-    assert anon.get(path).status_code == 401
-    assert anon.get(path, headers={"X-Team-Token": "wrong"}).status_code == 401
-    assert anon.get(path, headers={"X-Team-Token": "team-test-token"}).status_code == 200
-
-
-def test_login_probe_flow_the_page_uses_401_for_wrong_code_503_when_unconfigured(anon, monkeypatch):
-    assert anon.get("/api/triage", headers={"X-Team-Token": "nope"}).get_json()["error"]
-    monkeypatch.setattr(config, "TEAM_TOKEN", "")
-    r = anon.get("/api/triage", headers={"X-Team-Token": ""})
-    assert r.status_code == 503      # the page shows "เซิร์ฟเวอร์ยังไม่ได้ตั้งรหัสทีม"
+def test_every_endpoint_the_page_calls_answers_without_any_credentials(anon, path):
+    assert anon.get(path).status_code == 200
+    assert anon.get(path, headers={"X-Team-Token": "ignored"}).status_code == 200      # a stray header changes nothing
 
 
 # =====================================================================================================
@@ -749,7 +702,6 @@ def test_every_snake_case_name_in_the_page_exists_in_real_api_payloads(app_clien
         set_day(clock, monkeypatch, day)
         for path in ["/api/triage", "/api/help", "/api/tasks"] + [f"/api/report?week={w}" for w in range(1, 7)]:
             _collect(app_client.get(path).get_json(), names)
-    _collect(app_client.get("/api/session").get_json(), names)         # public: {"login_required": bool}
     names |= {"learners", "requests", "tasks", "current_week"}
     names |= set(messages.BLOCKERS)                      # blocker keys the fixtures do not happen to contain
     names |= {"title_required", "title_too_long", "description_too_long"}      # PUT /api/tasks error codes (own test below)
@@ -814,8 +766,11 @@ def test_close_is_allowed_straight_from_waiting_accepted_and_replied(app_client,
         assert app_client.post(f"/api/help/{hid}/status", json={"status": "closed"}).status_code == 200
 
 
-def test_status_endpoint_needs_the_token(anon):
-    assert anon.post("/api/help/1/status", json={"status": "accepted"}).status_code == 401
+def test_status_endpoint_needs_no_credentials_and_still_validates(anon, bot):
+    assert anon.post("/api/help/1/status", json={"status": "accepted"}).status_code == 404      # no such request
+    _fresh_help(bot)
+    assert anon.post("/api/help/1/status", json={"status": "bogus"}).status_code == 400
+    assert anon.post("/api/help/1/status", json={"status": "accepted"}).status_code == 200
 
 
 # ---- tasks editor contract -----------------------------------------------------------------------------------
@@ -866,10 +821,10 @@ def test_csv_export_each_kind_when_empty_is_just_a_header(app_client, kind):
     assert len(rows) == 1 and len(rows[0]) >= 4
 
 
-def test_csv_rejects_unknown_kind_and_missing_token(app_client, anon):
+def test_csv_rejects_unknown_kind_and_works_without_credentials(app_client, anon):
     assert app_client.get("/api/export.csv?kind=users").status_code == 400
     assert app_client.get("/api/export.csv").status_code == 400
-    assert anon.get("/api/export.csv?kind=help").status_code == 401
+    assert anon.get("/api/export.csv?kind=help").status_code == 200
 
 
 def test_csv_neutralises_spreadsheet_formulas(app_client, bot, db):

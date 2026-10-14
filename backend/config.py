@@ -37,14 +37,7 @@ assert MAIN_ACTIVITY_END + timedelta(days=FOLLOWUP_MIN_DAYS) <= PROJECT_END, (
 # Promised reply time shown to learners (assumption, not a measured SLA).
 SLA_TEXT = "ภายใน 1 วันทำการ"
 
-# The team board needs no login by default (the brief says a login is not required, and evaluators open it
-# straight away). TEAM_AUTH=on brings the team code back for /board and every team endpoint.
-TEAM_AUTH = os.environ.get("TEAM_AUTH", "off")
-
-# Required header X-Team-Token on every /api/* call. Empty = the API is disabled (fail closed).
-TEAM_TOKEN = os.environ.get("TEAM_TOKEN", "")
-
-LINE_CHANNEL_SECRET =os.environ.get("LINE_CHANNEL_SECRET", "")
+LINE_CHANNEL_SECRET = os.environ.get("LINE_CHANNEL_SECRET", "")
 LINE_CHANNEL_TOKEN = os.environ.get("LINE_CHANNEL_TOKEN", "")
 # Optional: pretend today is this date (demo of weeks 5-6 without waiting).
 DEMO_TODAY = os.environ.get("DEMO_TODAY", "")
@@ -53,22 +46,9 @@ DEMO_TODAY = os.environ.get("DEMO_TODAY", "")
 THAI_TZ = timezone(timedelta(hours=7))
 
 
-def auth_required() -> bool:
-    """True only when TEAM_AUTH=on: then /board asks for the team code and every team endpoint needs it."""
-    return TEAM_AUTH.strip().lower() == "on"
-
-
 def restricted_instance() -> bool:
     """An instance that can message real learners (LINE token) or holds real data (DATABASE_URL)."""
     return bool(LINE_CHANNEL_TOKEN or DATABASE_URL)
-
-
-def needs_team_token(path: str) -> bool:
-    """/api/admin/* (sends reminders) and /api/sim/* (fake learners) are not used by the page, so they stay behind
-    the team token on any restricted instance even while the board itself is open. Everything else follows TEAM_AUTH."""
-    if auth_required():
-        return True
-    return restricted_instance() and path.startswith(("/api/admin/", "/api/sim/"))
 
 
 def today() -> date:

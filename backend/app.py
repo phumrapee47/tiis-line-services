@@ -2,7 +2,7 @@
   POST /webhook                     LINE webhook (needs LINE_CHANNEL_SECRET / LINE_CHANNEL_TOKEN)
   POST /api/sim/event               chat simulator: send an event as a user, get the bot replies
   GET  /api/sim/outbox?user_id=..   system-initiated messages waiting for a simulated user
-  GET  /board                       team: browser Triage Board (page is public, data needs the token)
+  GET  /board                       team: browser board (no login)
   GET  /api/triage                  team: learners ranked by who to follow up first
   GET  /api/help[?status=..]        team: help requests
   POST /api/help/<id>/status        team: move a request along (accepted/replied/closed)
@@ -12,10 +12,10 @@
   GET  /api/tasks                   team: weekly tasks shown to learners
   PUT  /api/tasks/<week>            team: set title/description of week 1-4
   GET  /api/followups               team: answers to the 14-day follow-up
-The board and its team endpoints are open by default (no login). TEAM_AUTH=on requires the header X-Team-Token
-(= TEAM_TOKEN) on all of them; one shared token, no per-user login. /api/admin/* and /api/sim/* always need the token
-on an instance with a LINE token or DATABASE_URL. GET /api/session is public (tells the page whether to ask for a code)."""
-import hmac
+There is no login: the board and every team endpoint are open. /api/admin/* (sends reminders) and /api/sim/*
+(creates fake learners) are not used by the page and exist only on a local run: on an instance with a LINE token or a
+DATABASE_URL they answer 404.
+"""
 import json
 import logging
 from datetime import date
@@ -35,9 +35,6 @@ def create_app(db=None, bot=None):
     app = Flask(__name__)
     app.json.ensure_ascii = False
     db = db or open_database()
-    if not config.auth_required() and config.restricted_instance():
-        logging.warning("The team board is OPEN (TEAM_AUTH is not 'on') on an instance with LINE or DATABASE_URL: "
-                        "anyone with the link can read learner data and change help requests")
     bot = bot or Bot(db)
 
     def flush_outbox():
@@ -53,17 +50,11 @@ def create_app(db=None, bot=None):
                 db.record_outbox_failure(row["id"], "LINE push failed")
 
     @app.before_request
-    def require_team_token():
-        """/webhook is protected by LINE's signature and /health is public; all of /api/* needs the token."""
-        if not request.path.startswith("/api/") or request.path == "/api/session":
-            return None
-        if not config.needs_team_token(request.path):
-            return None  # open board: no team code (see config.needs_team_token for what stays protected)
-        if not config.TEAM_TOKEN:
-            return jsonify(error="API disabled: set TEAM_TOKEN"), 503
-        given = request.headers.get("X-Team-Token", "")
-        if not hmac.compare_digest(given.encode(), config.TEAM_TOKEN.encode()):
-            return jsonify(error="missing or wrong X-Team-Token"), 401
+    def hide_internal_endpoints():
+        """Reminders and simulated learners must not be reachable by anyone with the link on an instance that can
+        message real learners or holds real data."""
+        if request.path.startswith(("/api/admin/", "/api/sim/")) and config.restricted_instance():
+            return jsonify(error="not available on this instance"), 404
         return None
 
     @app.get("/board")
@@ -71,11 +62,6 @@ def create_app(db=None, bot=None):
         resp = send_from_directory(Path(__file__).parent / "static", "board.html")
         resp.headers["Cache-Control"] = "no-store"
         return resp
-
-    @app.get("/api/session")
-    def api_session():
-        """Public on purpose: tells the page whether it must ask for the team code. Reveals nothing else."""
-        return jsonify(login_required=config.auth_required())
 
     @app.get("/health")
     def health():

@@ -187,29 +187,8 @@ def test_to_line_enforces_limits():
 
 # ---- HTTP API -----------------------------------------------------------------------
 @pytest.fixture
-def client(db, bot, monkeypatch):
-    monkeypatch.setattr(config, "TEAM_TOKEN", "team-test-token")
-    c = create_app(db, bot).test_client()
-    c.environ_base["HTTP_X_TEAM_TOKEN"] = "team-test-token"
-    return c
-
-
-def test_api_rejects_missing_or_wrong_token(db, bot, monkeypatch):
-    monkeypatch.setattr(config, "TEAM_TOKEN", "team-test-token")
-    anon = create_app(db, bot).test_client()
-    for path in ("/api/triage", "/api/help", "/api/followups", "/api/sim/outbox?user_id=a"):
-        assert anon.get(path).status_code == 401
-    assert anon.get("/api/triage", headers={"X-Team-Token": "wrong"}).status_code == 401
-    assert anon.post("/api/admin/run-scheduled", json={}).status_code == 401
-    assert anon.get("/health").status_code == 200  # public
-    assert anon.get("/api/triage", headers={"X-Team-Token": "team-test-token"}).status_code == 200
-
-
-def test_api_is_disabled_when_no_token_configured(db, bot, monkeypatch):
-    monkeypatch.setattr(config, "TEAM_TOKEN", "")
-    c = create_app(db, bot).test_client()
-    assert c.get("/api/triage").status_code == 503
-    assert c.get("/api/triage", headers={"X-Team-Token": ""}).status_code == 503
+def client(db, bot):
+    return create_app(db, bot).test_client()
 
 
 def sim(client, uid, **kw):
@@ -260,8 +239,7 @@ def test_webhook_requires_config_and_valid_signature(client, monkeypatch):
     assert len(sent) == 1
 
 
-def test_board_page_is_served_without_token_and_contains_no_data(db, bot, monkeypatch):
-    monkeypatch.setattr(config, "TEAM_TOKEN", "team-test-token")
+def test_board_page_is_served_and_contains_no_data(db, bot):
     register(bot, "U1", "ลับมาก")
     r = create_app(db, bot).test_client().get("/board")  # no token header
     assert r.status_code == 200 and "text/html" in r.content_type
@@ -364,14 +342,6 @@ def test_tasks_api_validation(client, week, body, status, error):
     r = client.put(f"/api/tasks/{week}", json=body)
     assert r.status_code == status
     assert error is None or r.get_json()["error"] == error
-
-
-def test_tasks_api_requires_token(db, bot, monkeypatch):
-    monkeypatch.setattr(config, "TEAM_TOKEN", "team-test-token")
-    anon = create_app(db, bot).test_client()
-    assert anon.get("/api/tasks").status_code == 401
-    assert anon.put("/api/tasks/1", json={"title": "x"}).status_code == 401
-    assert db.get_task(1)["title"] != "x"
 
 
 def test_board_page_has_the_task_editor(db, bot):
@@ -663,13 +633,6 @@ def test_report_api_week_parameter(client):
     assert client.get("/api/report?week=5").get_json()["status"] == "followup"
     for bad in ("0", "7", "x", "-1", "1.5"):
         assert client.get(f"/api/report?week={bad}").status_code == 400, bad
-
-
-def test_report_and_export_require_the_token(db, bot, monkeypatch):
-    monkeypatch.setattr(config, "TEAM_TOKEN", "team-test-token")
-    anon = create_app(db, bot).test_client()
-    assert anon.get("/api/report").status_code == 401
-    assert anon.get("/api/export.csv?kind=help").status_code == 401
 
 
 def test_help_list_flags_overdue_requests(client, bot, db):

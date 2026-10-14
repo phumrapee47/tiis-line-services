@@ -80,10 +80,6 @@ input::placeholder { color: var(--muted); opacity: 1; }
 .check input { width: 24px; height: 24px; margin: 0; flex: none; accent-color: var(--info); }
 
 /* login */
-.login-box { max-width: 420px; margin: 12vh auto 0; padding: 24px 16px; }
-.login-box form { display: grid; gap: 16px; margin-top: 16px; }
-.login-box p { margin-top: 8px; }
-.login-box h1 { font-size: 24px; }
 
 /* header */
 .top { padding: 12px 0 8px; display: grid; gap: 4px; }
@@ -297,38 +293,17 @@ main { padding: 8px 0 88px; }
 <body>
 <a class="skip" id="skip" href="#main">ข้ามไปเนื้อหาหลัก</a>
 
-<div id="loginView" hidden>
-  <div class="login-box">
-    <h1>เข้าสู่ระบบทีมงาน</h1>
-    <p class="muted">สำหรับทีมงานเท่านั้น กรอกรหัสทีมเพื่อดูข้อมูลผู้เรียน</p>
-    <form id="loginForm" novalidate>
-      <div class="field">
-        <label for="teamCode">รหัสทีม</label>
-        <input id="teamCode" type="password" autocomplete="current-password" aria-describedby="loginErr">
-      </div>
-      <div id="loginErr" class="status bad" role="alert" hidden></div>
-      <button id="loginBtn" class="btn primary block" type="submit">เข้าสู่ระบบ</button>
-    </form>
-  </div>
-</div>
-
-<div id="appView" hidden>
+<div id="appView">
   <div class="wrap">
     <header class="top">
       <div class="top-row">
         <h1>ติดตามผู้เรียน TIIS</h1>
-        <button id="logoutBtn" class="btn" type="button">ออกจากระบบ</button>
       </div>
       <div class="top-row2">
         <span id="updated" class="small muted">กำลังโหลดข้อมูล...</span>
         <button id="refreshBtn" class="btn" type="button">รีเฟรช</button>
       </div>
     </header>
-    <div id="openNote" class="banner inf" hidden>
-      <span class="mark" aria-hidden="true">i</span>
-      <span class="msg"><strong>โหมดเปิดสำหรับการตรวจงาน:</strong> หน้านี้ไม่มีการล็อกอิน ใครมีลิงก์ก็เปิดดูได้
-        ควรใช้กับข้อมูลทดลองเท่านั้น</span>
-    </div>
     <div id="banner" class="banner err" role="alert" hidden>
       <span class="mark bad" aria-hidden="true">!</span>
       <span class="msg"><strong>เกิดข้อผิดพลาด:</strong> <span id="bannerText"></span></span>
@@ -417,9 +392,6 @@ const THAI_RE = /[฀-๿]/;
 const $ = (id) => document.getElementById(id);
 
 const MSG = {
-  loginBad: "รหัสทีมไม่ถูกต้อง ลองใหม่อีกครั้ง",
-  expired: "รหัสทีมหมดอายุหรือไม่ถูกต้อง กรุณาเข้าสู่ระบบใหม่",
-  unconfigured: "เซิร์ฟเวอร์ยังไม่ได้ตั้งรหัสทีม แจ้งผู้ดูแลระบบให้ตั้งค่า",
   network: "เชื่อมต่อเซิร์ฟเวอร์ไม่ได้ (ถ้าเซิร์ฟเวอร์เพิ่งตื่น ลองรอสักครู่แล้วลองใหม่)",
   generic: "เกิดข้อผิดพลาด ลองใหม่อีกครั้ง",
   noName: "(ไม่ระบุชื่อ)",
@@ -485,29 +457,13 @@ function freshState() {
 }
 let S = freshState();
 
-/* ---- sign-in state: sessionStorage only, with an in-memory fallback if the browser blocks it ---- */
-const TOKEN_KEY = "teamToken";
-let memToken = "";
-let openMode = false;   // the server said no team code is needed (local demo only)
-function signedIn() { return openMode || getToken() !== ""; }
-function getToken() {
-  if (memToken) return memToken;
-  try { return sessionStorage.getItem(TOKEN_KEY) || ""; } catch (e) { return ""; }
-}
-function setToken(t) {
-  memToken = t || "";
-  try { if (t) sessionStorage.setItem(TOKEN_KEY, t); else sessionStorage.removeItem(TOKEN_KEY); } catch (e) { /* blocked: memory only */ }
-}
-
-/* ---- server calls: every request carries the team header ---- */
+/* ---- server calls ---- */
 class ApiError extends Error {
   constructor(message, status, code) { super(message); this.status = status; this.code = code || ""; }
 }
-class AuthError extends ApiError {}
-
 async function api(path, opts) {
   const o = opts || {};
-  const headers = { "X-Team-Token": getToken() };
+  const headers = {};
   if (o.body) headers["Content-Type"] = "application/json";
   let res;
   try {
@@ -515,10 +471,8 @@ async function api(path, opts) {
   } catch (e) {
     throw new ApiError(MSG.network, 0, "network");
   }
-  if (res.status === 401) throw new AuthError(MSG.expired, 401, "auth");
   let body = null;
   try { body = await res.json(); } catch (e) { body = null; }
-  if (res.status === 503) throw new ApiError(MSG.unconfigured, 503, "unconfigured");
   if (!res.ok) {
     const code = body && typeof body.error === "string" ? body.error : "";
     const msg = THAI_RE.test(code) ? code : res.status >= 500 ? "เกิดข้อผิดพลาด (รหัส " + res.status + ")" : MSG.generic;
@@ -633,7 +587,6 @@ async function loadAll(mode) {
     return { ok: true };
   } catch (e) {
     if (sess !== sessionId) return { skipped: true };
-    if (e instanceof AuthError) { forceLogin(MSG.expired); return { auth: true }; }
     if (!S.loaded) { S.firstError = e.message; renderFirstError(); }
     else showBanner("โหลดข้อมูลใหม่ไม่สำเร็จ แสดงข้อมูลเดิมของเวลา " + hhmm(S.updatedAt) + " น. (" + e.message + ")");
     return { error: e };
@@ -642,84 +595,14 @@ async function loadAll(mode) {
   }
 }
 
-/* ---- sign in / out ---- */
-function destroyData() {
-  for (const id of ["homeBody", "lrnSummary", "lrnList", "helpList", "ovBody", "taskList", "firstErr", "regLine", "exportStatus"]) clear($(id));
-  for (const id of ["lrnCount", "helpNow", "bannerText", "weekLoading", "live"]) $(id).textContent = "";
-  $("lrnSearch").value = ""; $("lrnHide").checked = true;
-  $("weekSelect").replaceChildren(); $("weekChip").hidden = true; $("weekLoading").hidden = true;
-  hideBanner();
-  setText($("updated"), "กำลังโหลดข้อมูล...");
-  setText($("refreshBtn"), "รีเฟรช"); $("refreshBtn").disabled = false;
-  $("main").setAttribute("aria-busy", "true");
-  resetExportButtons();
-  renderNav();
-  document.title = "ติดตามผู้เรียน TIIS";
-}
-
-function showLogin(msg) {
-  $("appView").hidden = true;
-  $("loginView").hidden = false;
-  const err = $("loginErr");
-  err.hidden = !msg;
-  err.textContent = "";
-  if (msg) err.append(h("span", { class: "mark bad", "aria-hidden": "true", text: "!" }), h("span", { text: msg }));
-  const input = $("teamCode");
-  input.value = ""; input.readOnly = false;
-  $("loginBtn").disabled = false; setText($("loginBtn"), "เข้าสู่ระบบ");
-  if (msg) input.focus();
-}
-function showApp() {
-  $("loginView").hidden = true;
-  $("appView").hidden = false;
-  syncRoute(false);
-}
 function stopTimer() { if (timer) { clearInterval(timer); timer = null; } }
 let timer = null;
 function startTimer() {
   stopTimer();
-  timer = setInterval(() => { if (!document.hidden && signedIn() && S.loaded) loadAll("auto"); }, REFRESH_MS);
+  timer = setInterval(() => { if (!document.hidden && S.loaded) loadAll("auto"); }, REFRESH_MS);
 }
 
-/* signed out for any reason: drop the sign-in, every learner detail, and any half-typed editor */
-function forceLogin(msg, keepHash) {
-  setToken("");
-  openMode = false; $("openNote").hidden = true; $("logoutBtn").hidden = false;   // the server wants a code after all
-  sessionId++;
-  stopTimer();
-  S = freshState();
-  destroyData();
-  if (!keepHash && !msg) history.replaceState(null, "", location.pathname + location.search);
-  showLogin(msg || "");
-}
-function logout() { forceLogin("", false); }
-
-async function doLogin(ev) {
-  ev.preventDefault();
-  const input = $("teamCode");
-  const value = input.value.trim();
-  if (!value) { showLogin(MSG.loginBad); return; }
-  const btn = $("loginBtn");
-  btn.disabled = true; setText(btn, "กำลังตรวจสอบ..."); input.readOnly = true;
-  setToken(value);
-  const sess = ++sessionId;
-  S = freshState();
-  try {
-    const d = await fetchAll(null);
-    if (sess !== sessionId) return;
-    input.value = "";
-    showApp();
-    applyAll(d, null);
-    renderAll();
-    startTimer();
-  } catch (e) {
-    if (sess !== sessionId) return;
-    setToken("");
-    showLogin(e instanceof AuthError ? MSG.loginBad : e.message);
-  }
-}
-
-/* ---- routes (hash only: never a secret in the address) ---- */
+/* ---- routes (hash only) ---- */
 const NAV = [
   { r: "home", short: "หน้าแรก", full: "หน้าแรก" },
   { r: "learners", short: "ต้องตาม", full: "ผู้เรียนที่ต้องตาม" },
@@ -972,7 +855,6 @@ async function changeStatus(r, to) {
     await api("/api/help/" + encodeURIComponent(r.id) + "/status", { method: "POST", body: JSON.stringify({ status: to }) });
     ok = true;
   } catch (e) {
-    if (e instanceof AuthError) { forceLogin(MSG.expired); return; }
     S.cardErr[r.id] = cardErrText(e);
   }
   if (sess !== sessionId) return;
@@ -1230,7 +1112,6 @@ async function changeWeek(n) {
     S.report = r; S.reportWeek = n; S.nrShown = PAGE; S.sig = sigNow();
   } catch (e) {
     if (sess !== sessionId) return;
-    if (e instanceof AuthError) { forceLogin(MSG.expired); return; }
     showBanner("โหลดข้อมูลสัปดาห์ที่ " + n + " ไม่สำเร็จ (" + e.message + ")");
   } finally {
     if (sess === sessionId) { S.weekLoading = false; note.hidden = true; renderOverview(); sel.focus({ preventScroll: true }); }
@@ -1388,7 +1269,6 @@ async function loadTrend(quiet) {
   const res = await Promise.allSettled(weeks.map((w) => api("/api/report?week=" + w)));
   if (sess !== sessionId) return;
   S.trendLoading = false;
-  if (res.some((x) => x.status === "rejected" && x.reason instanceof AuthError)) { forceLogin(MSG.expired); return; }
   S.trend = res.map((x, i) => ({ week: weeks[i], data: x.status === "fulfilled" ? x.value : null }));
   renderTrend();
 }
@@ -1501,10 +1381,8 @@ async function downloadCsv(ex, btn) {
   try {
     let res;
     try {
-      res = await fetch("/api/export.csv?kind=" + encodeURIComponent(ex.kind), { headers: { "X-Team-Token": getToken() }, cache: "no-store" });
+      res = await fetch("/api/export.csv?kind=" + encodeURIComponent(ex.kind), { cache: "no-store" });
     } catch (e) { throw new ApiError(MSG.network, 0, "network"); }
-    if (res.status === 401) throw new AuthError(MSG.expired, 401, "auth");
-    if (res.status === 503) throw new ApiError(MSG.unconfigured, 503, "unconfigured");
     if (!res.ok) throw new ApiError("ดาวน์โหลดไม่สำเร็จ ลองใหม่อีกครั้ง", res.status, "");
     const blob = await res.blob();
     const url = URL.createObjectURL(blob);
@@ -1513,9 +1391,8 @@ async function downloadCsv(ex, btn) {
     setTimeout(() => URL.revokeObjectURL(url), 1500);
     if (sess === sessionId) { setStatus(status, "good", "ดาวน์โหลดแล้ว: " + ex.name); announce("ดาวน์โหลดแล้ว: " + ex.name); }
   } catch (e) {
-    if (e instanceof AuthError) { forceLogin(MSG.expired); return; }
     if (sess === sessionId) {
-      const text = e.code === "network" || e.code === "unconfigured" ? e.message : "ดาวน์โหลดไม่สำเร็จ ลองใหม่อีกครั้ง";
+      const text = e.code === "network" ? e.message : "ดาวน์โหลดไม่สำเร็จ ลองใหม่อีกครั้ง";
       setStatus(status, "bad", text); announce(text);
     }
   } finally {
@@ -1574,7 +1451,6 @@ function taskItem(t) {
       setStatus(status, "good", "บันทึกแล้ว");
       announce("บันทึกงานสัปดาห์ที่ " + week + " แล้ว");
     } catch (e) {
-      if (e instanceof AuthError) { forceLogin(MSG.expired); return; }
       if (sess !== sessionId) return;
       setStatus(status, "bad", taskErrText(e));
     } finally {
@@ -1607,8 +1483,6 @@ function renderAll() {
 function init() {
   buildDefs();
   buildExportList();
-  $("loginForm").addEventListener("submit", doLogin);
-  $("logoutBtn").addEventListener("click", logout);
   $("refreshBtn").addEventListener("click", () => loadAll("manual"));
   $("bannerRetry").addEventListener("click", () => loadAll("retry"));
   $("skip").addEventListener("click", (e) => { e.preventDefault(); $("main").focus(); });
@@ -1618,39 +1492,12 @@ function init() {
   $("weekSelect").addEventListener("change", (e) => changeWeek(Number(e.target.value)));
   window.addEventListener("hashchange", () => { if (!$("appView").hidden) syncRoute(true); });
   document.addEventListener("visibilitychange", () => {
-    if (!document.hidden && signedIn() && S.loaded && S.updatedAt && Date.now() - S.updatedAt.getTime() > REFRESH_MS) loadAll("auto");
+    if (!document.hidden && S.loaded && S.updatedAt && Date.now() - S.updatedAt.getTime() > REFRESH_MS) loadAll("auto");
   });
-  startUp();
-}
-
-/* Ask the server first whether a team code is needed at all (public GET /api/session, sends no token). */
-async function askLoginRequired() {
-  try {
-    const res = await fetch("/api/session", { cache: "no-store" });
-    if (!res.ok) return true;
-    const body = await res.json();
-    return body.login_required !== false;
-  } catch (e) {
-    return true;   // can't tell: behave as if a code is needed
-  }
-}
-
-async function startUp() {
-  if (!(await askLoginRequired())) {
-    openMode = true;
-    $("logoutBtn").hidden = true;
-    $("openNote").hidden = false;
-    showApp(); renderAll(); loadAll("first"); startTimer();
-    return;
-  }
-  if (getToken()) {
-    showApp();
-    renderAll();
-    loadAll("first");
-    startTimer();
-  } else {
-    showLogin("");
-  }
+  syncRoute(false);
+  renderAll();
+  loadAll("first");
+  startTimer();
 }
 init();
 </script>
