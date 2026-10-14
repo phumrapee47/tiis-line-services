@@ -69,6 +69,8 @@ def pg_database():
         pg.apply_schema(f.read())
     yield pg
     pg.conn.close()
+    with psycopg.connect(TEST_DB_URL, autocommit=True) as admin:   # leave nothing behind
+        admin.execute("DROP SCHEMA IF EXISTS tiis_test CASCADE")
 
 
 @pytest.fixture(params=["sqlite"] + (["postgres"] if TEST_DB_URL else []))

@@ -312,3 +312,26 @@ def test_dates_come_back_as_plain_iso_strings(any_db):
     add_user(any_db, joined=date(2026, 10, 19))
     u = any_db.get_user("U1")
     assert u["joined_on"] == "2026-10-19" and isinstance(u["joined_on"], str)
+
+
+def test_postgres_reconnects_when_the_pooler_drops_the_connection(any_db):
+    if not is_pg(any_db):
+        pytest.skip("Postgres-only")
+    add_user(any_db)
+    any_db.conn.close()                    # what an idle-timeout on the pooler looks like to the next query
+    assert any_db.get_user("U1")["nickname"] == "เอ"
+    any_db.add_help_note(any_db.create_help("U1", "tool", None), "ยังใช้ได้หลังเชื่อมต่อใหม่")
+
+
+def test_postgres_refuses_unknown_user_and_unknown_fields_instead_of_silently_dropping(any_db):
+    if not is_pg(any_db):
+        pytest.skip("Postgres-only: SQLite has no foreign keys")
+    with pytest.raises(LookupError):
+        any_db.create_help("ghost", "tool", None)
+    with pytest.raises(LookupError):
+        any_db.upsert_checkin("ghost", 1, "doing", 3, None, False)
+    add_user(any_db)
+    with pytest.raises(ValueError):
+        any_db.update_user("U1", state="idle")
+    with pytest.raises(ValueError):
+        any_db.update_help(1, detail="x")
