@@ -19,6 +19,8 @@ def _load_dotenv(path):
 _load_dotenv(Path(__file__).resolve().parent.parent / ".env")
 
 DB_PATH = os.environ.get("DB_PATH", "data.db")
+# Postgres/Supabase connection string (use the Session pooler URI on Render). Empty = SQLite at DB_PATH.
+DATABASE_URL = os.environ.get("DATABASE_URL", "")
 
 # Day 1 of the 6-week pilot (assumed, not given in the brief).
 PROJECT_START = date.fromisoformat(os.environ.get("PROJECT_START", "2026-10-19"))
@@ -49,6 +51,12 @@ THAI_TZ = timezone(timedelta(hours=7))
 
 def today() -> date:
     return date.fromisoformat(DEMO_TODAY) if DEMO_TODAY else datetime.now(THAI_TZ).date()
+
+
+def in_checkin_period(d: date) -> bool:
+    """Weekly reports happen during the main activity (weeks 1-4). Before the start date is allowed
+    so the bot can be tried out in advance; weeks 5-6 are follow-up only."""
+    return (d - PROJECT_START).days < MAIN_ACTIVITY_DAYS
 
 
 def week_no(d: date) -> int:

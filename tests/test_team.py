@@ -377,3 +377,344 @@ def test_tasks_api_requires_token(db, bot, monkeypatch):
 def test_board_page_has_the_task_editor(db, bot):
     page = create_app(db, bot).test_client().get("/board").get_data(as_text=True)
     assert "งานรายสัปดาห์" in page and "/api/tasks" in page
+
+
+# ---- check-ins only in weeks 1-4 --------------------------------------------------------
+@pytest.mark.parametrize("day,allowed", [
+    (-3, True),    # before the start date: allowed so the bot can be tried in advance
+    (0, True), (27, True),     # day 1 and day 28 (last main-activity day)
+    (28, False), (41, False),  # day 29 .. day 42: follow-up weeks
+    (60, False),               # after the project ended
+])
+def test_checkin_is_open_only_during_the_main_activity(bot, db, clock, day, allowed):
+    c = register(bot)
+    clock.d = config.PROJECT_START + timedelta(days=day)
+    c.say("รายงานความคืบหน้า")
+    assert ("ความคืบหน้าของงานนี้" in c.text) == allowed, c.text
+    if not allowed:
+        assert "ช่วงติดตามผล" in c.text
+        assert db.get_user("U1")["state"] == "idle"     # nothing started, nothing half-saved
+        c.event({"type": "postback", "data": "s=idle&v=checkin_edit"})  # old "แก้ไข" button
+        assert "ช่วงติดตามผล" in c.text and db.get_user("U1")["state"] == "idle"
+        assert db.get_checkin("U1", 5) is None and db.get_checkin("U1", 6) is None
+
+
+def test_status_in_followup_weeks_does_not_say_report_missing(bot, clock):
+    c = register(bot)
+    clock.d = config.PROJECT_START + timedelta(days=30)
+    c.say("สถานะของฉัน")
+    assert "ช่วงติดตามผล" in c.text and "ยังไม่ได้ส่ง" not in c.text
+
+
+def test_learner_who_reported_every_week_is_not_flagged_in_followup_weeks(bot, db, clock):
+    c = register(bot)
+    for week in (1, 2, 3, 4):
+        clock.d = config.PROJECT_START + timedelta(days=7 * (week - 1))
+        checkin(c, "เสร็จแล้ว", 5)
+    for day in (30, 38):     # weeks 5 and 6: no check-in possible, so none can be "missed"
+        clock.d = config.PROJECT_START + timedelta(days=day)
+        row = triage.triage(db, clock.d)[0]
+        assert row["level"] == "normal", (day, row["reasons"])
+
+
+# ---- telling learners apart ---------------------------------------------------------------
+def test_same_nickname_learners_get_different_refs(client, bot):
+    register(bot, "U1111aaaa", "เอ")
+    register(bot, "U2222bbbb", "เอ")
+    learners = client.get("/api/triage").get_json()["learners"]
+    refs = {row["ref"] for row in learners}
+    assert refs == {"aaaa", "bbbb"} and all("user_id" not in row for row in learners)
+
+
+def test_help_list_carries_display_name_and_ref(client, bot, db):
+    c = register(bot, "Uabcdef1234", "เอ")
+    db.update_user("Uabcdef1234", display_name="Alice ✨")
+    c.say("ขอความช่วยเหลือ")
+    c.tap("เนื้อหา")
+    c.tap("ข้าม")
+    row = client.get("/api/help").get_json()["requests"][0]
+    assert (row["display_name"], row["ref"]) == ("Alice ✨", "1234") and "user_id" not in row
+
+
+def test_get_profile_returns_display_name_or_none(monkeypatch):
+    class Resp:
+        def __init__(self, status, body):
+            self.status_code, self._body = status, body
+
+        def json(self):
+            return self._body
+
+    monkeypatch.setattr(line_adapter.requests, "get", lambda *a, **k: Resp(200, {"displayName": " Bob "}))
+    assert line_adapter.get_profile("U1", "tok") == "Bob"
+    monkeypatch.setattr(line_adapter.requests, "get", lambda *a, **k: Resp(200, {}))
+    assert line_adapter.get_profile("U1", "tok") is None
+    monkeypatch.setattr(line_adapter.requests, "get", lambda *a, **k: Resp(404, {}))
+    assert line_adapter.get_profile("U1", "tok") is None
+
+    def boom(*a, **k):
+        raise line_adapter.requests.ConnectionError("down")
+    monkeypatch.setattr(line_adapter.requests, "get", boom)
+    assert line_adapter.get_profile("U1", "tok") is None
+
+
+def _signed(body_dict):
+    body = json.dumps(body_dict).encode()
+    return body, base64.b64encode(hmac.new(b"s3cret", body, hashlib.sha256).digest()).decode()
+
+
+def _line_event(user, text_or_data, kind, n):
+    ev = {"source": {"userId": user}, "replyToken": f"rt{n}", "webhookEventId": f"w{n}"}
+    if kind == "follow":
+        ev["type"] = "follow"
+    else:
+        ev.update(type="postback", postback={"data": text_or_data})
+    return {"events": [ev]}
+
+
+def test_profile_is_fetched_once_and_only_after_consent(client, db, monkeypatch):
+    monkeypatch.setattr(config, "LINE_CHANNEL_SECRET", "s3cret")
+    monkeypatch.setattr(config, "LINE_CHANNEL_TOKEN", "tok")
+    monkeypatch.setattr(line_adapter, "reply", lambda *a: True)
+    lookups = []
+    monkeypatch.setattr(line_adapter, "get_profile", lambda uid, tok: lookups.append(uid) or "Carol")
+
+    def send(payload):
+        body, sig = _signed(payload)
+        assert client.post("/webhook", data=body, headers={"X-Line-Signature": sig}).status_code == 200
+
+    send(_line_event("Uc1", "", "follow", 1))                      # asked for consent, not given yet
+    assert lookups == [] and db.get_user("Uc1")["display_name"] is None
+    send(_line_event("Uc1", "s=consent&v=yes", "postback", 2))     # consented
+    assert lookups == ["Uc1"] and db.get_user("Uc1")["display_name"] == "Carol"
+    send(_line_event("Uc1", "s=nickname&v=x", "postback", 3))      # later messages: no new lookup
+    assert lookups == ["Uc1"]
+
+
+def test_declining_consent_never_triggers_a_profile_lookup(client, db, monkeypatch):
+    monkeypatch.setattr(config, "LINE_CHANNEL_SECRET", "s3cret")
+    monkeypatch.setattr(config, "LINE_CHANNEL_TOKEN", "tok")
+    monkeypatch.setattr(line_adapter, "reply", lambda *a: True)
+    lookups = []
+    monkeypatch.setattr(line_adapter, "get_profile", lambda uid, tok: lookups.append(uid) or "Dan")
+    for n, (kind, data) in enumerate([("follow", ""), ("postback", "s=consent&v=no")], 1):
+        body, sig = _signed(_line_event("Ud1", data, kind, n))
+        client.post("/webhook", data=body, headers={"X-Line-Signature": sig})
+    assert lookups == [] and db.get_user("Ud1") is None
+
+
+def test_failed_profile_lookup_does_not_break_the_reply_and_is_not_retried_each_message(client, db, monkeypatch):
+    monkeypatch.setattr(config, "LINE_CHANNEL_SECRET", "s3cret")
+    monkeypatch.setattr(config, "LINE_CHANNEL_TOKEN", "tok")
+    replies, lookups = [], []
+    monkeypatch.setattr(line_adapter, "reply", lambda tok, msgs, t: replies.append(msgs) or True)
+    monkeypatch.setattr(line_adapter, "get_profile", lambda uid, tok: lookups.append(uid))  # returns None
+    for n, data in enumerate(["", "s=consent&v=yes", "s=nickname&v=x"], 1):
+        body, sig = _signed(_line_event("Ue1", data, "follow" if n == 1 else "postback", n))
+        assert client.post("/webhook", data=body, headers={"X-Line-Signature": sig}).status_code == 200
+    assert len(replies) == 3 and lookups == ["Ue1"]
+
+
+def test_old_users_table_gets_display_name_column_and_keeps_rows(tmp_path):
+    import sqlite3
+    from backend.db import Database
+    path = tmp_path / "old_users.db"
+    old = sqlite3.connect(path)
+    old.executescript("""
+        CREATE TABLE users (user_id TEXT PRIMARY KEY, nickname TEXT, goal TEXT,
+            state TEXT NOT NULL, state_data TEXT NOT NULL DEFAULT '{}', joined_on TEXT NOT NULL);
+        INSERT INTO users (user_id, nickname, state, joined_on) VALUES ('U1', 'เอ', 'idle', '2026-10-19');""")
+    old.commit()
+    old.close()
+    migrated = Database(str(path))
+    assert migrated.get_user("U1")["nickname"] == "เอ" and migrated.get_user("U1")["display_name"] is None
+    migrated.update_user("U1", display_name="Alice")
+    assert migrated.get_user("U1")["display_name"] == "Alice"
+
+
+# ---- weekly report + CSV export ----------------------------------------------------------
+import csv as csv_module  # noqa: E402
+from datetime import datetime  # noqa: E402
+
+from backend import reports  # noqa: E402
+from backend.config import THAI_TZ  # noqa: E402
+
+
+def at_day(clock, day):
+    clock.d = config.PROJECT_START + timedelta(days=day)
+
+
+def test_report_shows_reported_and_not_reported_with_denominator(bot, db, clock):
+    for uid, nick, report_it in (("U1", "เอ", True), ("U2", "บี", True), ("U3", "ซี", False)):
+        c = register(bot, uid, nick)
+        if report_it:
+            checkin(c, "กำลังทำ", 4)
+    r = reports.weekly_report(db, 1, clock.d)
+    assert (r["registered"], r["eligible"], r["reported"]) == (3, 3, 2)
+    assert [n["nickname"] for n in r["not_reported"]] == ["ซี"] and r["status"] == "open"
+
+
+def test_learner_who_joined_after_the_week_is_not_expected_to_report_it(bot, db, clock):
+    register(bot, "U1", "เอ")
+    at_day(clock, 8)   # week 2
+    register(bot, "U2", "บี")
+    assert reports.weekly_report(db, 1, clock.d)["eligible"] == 1
+    assert reports.weekly_report(db, 2, clock.d)["eligible"] == 2
+
+
+@pytest.mark.parametrize("day,week,status", [
+    (1, 1, "open"), (1, 3, "future"), (8, 1, "closed"), (8, 2, "open"),
+    (30, 4, "closed"), (30, 5, "followup"), (40, 6, "followup"),
+])
+def test_report_status_tells_how_to_read_the_week(bot, db, clock, day, week, status):
+    register(bot)
+    at_day(clock, day)
+    r = reports.weekly_report(db, week, clock.d)
+    assert r["status"] == status
+    if status in ("followup", "future"):
+        assert r["not_reported"] == []      # nobody can be "missing" a report that does not exist
+
+
+def test_report_counts_consecutive_silent_weeks_and_last_report(bot, db, clock):
+    a = register(bot, "U1", "เงียบ")
+    b = register(bot, "U2", "เพิ่งเงียบ")
+    checkin(a, "เสร็จแล้ว", 5)       # week 1 only
+    checkin(b, "เสร็จแล้ว", 5)
+    at_day(clock, 7)
+    checkin(b, "เสร็จแล้ว", 5)       # week 2
+    at_day(clock, 14)                # week 3 is open: it is not counted as missed yet
+    rows = reports.weekly_report(db, 3, clock.d)["not_reported"]
+    assert [(r["nickname"], r["silent_weeks"], r["last_report_week"]) for r in rows] == [
+        ("เงียบ", 1, 1), ("เพิ่งเงียบ", 0, 2)]
+    at_day(clock, 21)                # week 3 has closed: now it counts
+    rows = reports.weekly_report(db, 3, clock.d)["not_reported"]
+    assert [(r["nickname"], r["silent_weeks"]) for r in rows] == [("เงียบ", 2), ("เพิ่งเงียบ", 1)]
+
+
+def test_report_progress_confidence_and_blockers(bot, db, clock):
+    checkin(register(bot, "U1", "U1"), "เสร็จแล้ว", 5)
+    checkin(register(bot, "U2", "U2"), "ติดอยู่", 1, extra=("เครื่องมือ", "ขอลองเอง"))
+    checkin(register(bot, "U3", "U3"), "ยังไม่ได้เริ่ม", 2, extra=("ไม่มีเวลา", "ขอลองเอง"))
+    c = register(bot, "U4", "U4")
+    c.say("รายงานความคืบหน้า")
+    c.tap("ยังไม่ได้เริ่ม")
+    c.tap("3")
+    c.tap("อื่นๆ")
+    c.say("ไม่มีคอม")
+    c.tap("ขอลองเอง")
+    r = reports.weekly_report(db, 1, clock.d)
+    assert r["progress"] == {"done": 1, "doing": 0, "not_started": 2, "stuck": 1}
+    assert r["avg_confidence"] == 2.8 and r["blockers"] == {"tool_hard": 1, "no_time": 1, "other": 1}
+
+
+def test_report_with_no_check_ins_has_no_average_and_zero_counts(bot, db, clock):
+    register(bot)
+    r = reports.weekly_report(db, 1, clock.d)
+    assert r["avg_confidence"] is None and sum(r["progress"].values()) == 0 and r["blockers"] == {}
+
+
+def test_report_separates_unfinished_registration_and_missing_consent(bot, db, clock):
+    register(bot, "U1", "เอ")
+    half = Chat(bot, "U2")
+    half.say("สวัสดี")
+    half.tap("ยินยอม")                    # consented, no nickname yet
+    Chat(bot, "U3").say("สวัสดี")         # has not answered the consent question
+    r = reports.weekly_report(db, 1, clock.d)
+    assert (r["registered"], r["onboarding_incomplete"], r["awaiting_consent"]) == (1, 1, 1)
+
+
+def test_report_followup_counts_asked_answered_and_pending(bot, db, clock):
+    a = register(bot, "U1", "เอ")
+    register(bot, "U2", "บี")
+    scheduler.run_scheduled(db, scheduler.FOLLOWUPS["fu_mid"])
+    a.event({"type": "postback", "data": "s=fu&v=used"})   # the question arrived as a push
+    f = reports.weekly_report(db, 5, clock.d)["followups"]
+    assert f["fu_mid"] == {"asked": 2, "answered": 1, "pending": 1,
+                           "outcomes": {"used": 1, "not_yet": 0, "stuck": 0}}
+    assert f["fu_final"]["asked"] == 0
+
+
+def _help_row(created, status="waiting"):
+    return {"status": status, "created_at": created.isoformat()}
+
+
+MON = datetime(2026, 10, 19, 10, 0, tzinfo=THAI_TZ)   # Monday 10:00 Thai time
+
+
+@pytest.mark.parametrize("created,now,overdue", [
+    (MON, MON + timedelta(hours=23, minutes=59), False),                         # just inside one day
+    (MON, MON + timedelta(days=1, minutes=1), True),                             # just past it
+    (MON + timedelta(days=4, hours=5), MON + timedelta(days=5, hours=6), False),  # Fri 15:00: Saturday is not due
+    (MON + timedelta(days=4, hours=5), MON + timedelta(days=7, hours=4, minutes=59), False),  # Mon 14:59
+    (MON + timedelta(days=4, hours=5), MON + timedelta(days=7, hours=5, minutes=1), True),    # Mon 15:01
+    (MON + timedelta(days=5), MON + timedelta(days=7, minutes=-1), False),       # Sat 10:00: due Mon 10:00
+    (MON + timedelta(days=5), MON + timedelta(days=7, minutes=1), True),
+])
+def test_overdue_uses_one_working_day_skipping_weekends(created, now, overdue):
+    assert reports.is_overdue(_help_row(created), now) is overdue
+
+
+@pytest.mark.parametrize("status", ["accepted", "replied", "closed"])
+def test_only_unanswered_requests_can_be_overdue(status):
+    assert reports.is_overdue(_help_row(MON, status), MON + timedelta(days=30)) is False
+
+
+def test_report_api_week_parameter(client):
+    assert client.get("/api/report").get_json()["week"] == 1
+    assert client.get("/api/report?week=5").get_json()["status"] == "followup"
+    for bad in ("0", "7", "x", "-1", "1.5"):
+        assert client.get(f"/api/report?week={bad}").status_code == 400, bad
+
+
+def test_report_and_export_require_the_token(db, bot, monkeypatch):
+    monkeypatch.setattr(config, "TEAM_TOKEN", "team-test-token")
+    anon = create_app(db, bot).test_client()
+    assert anon.get("/api/report").status_code == 401
+    assert anon.get("/api/export.csv?kind=help").status_code == 401
+
+
+def test_help_list_flags_overdue_requests(client, bot, db):
+    c = register(bot)
+    c.say("ขอความช่วยเหลือ")
+    c.tap("เนื้อหา")
+    c.tap("ข้าม")
+    assert client.get("/api/help").get_json()["requests"][0]["overdue"] is False
+    db.update_help(1, created_at=(datetime.now(THAI_TZ) - timedelta(days=10)).isoformat())
+    assert client.get("/api/help").get_json()["requests"][0]["overdue"] is True
+
+
+def test_csv_export_kinds_headers_and_privacy(client, bot, db):
+    c = register(bot, "Uprivate9999", "เอ")
+    db.update_user("Uprivate9999", display_name="Real Name")
+    checkin(c, "เสร็จแล้ว", 5)
+    c.say("ขอความช่วยเหลือ")
+    c.tap("เนื้อหา")
+    c.tap("ข้าม")
+    for kind, header in (("learners", "ref,nickname"), ("checkins", "ref,nickname,week"),
+                         ("help", "id,ref,nickname"), ("followups", "ref,nickname,kind")):
+        r = client.get(f"/api/export.csv?kind={kind}")
+        text = r.get_data(as_text=True)
+        assert r.status_code == 200 and r.mimetype == "text/csv", kind
+        assert text.startswith("﻿" + header), kind                      # BOM so Excel reads Thai
+        assert f"tiis-{kind}.csv" in r.headers["Content-Disposition"]
+        assert "Uprivate9999" not in text and "Real Name" not in text, kind  # no LINE id, no LINE name
+    assert "9999" in client.get("/api/export.csv?kind=checkins").get_data(as_text=True)  # short ref only
+
+
+def test_csv_neutralises_spreadsheet_formulas_typed_by_learners(client, bot):
+    c = register(bot, "U1", "=SUM(1+1)")
+    c.say("ขอความช่วยเหลือ")
+    c.tap("เนื้อหา")
+    c.say("+cmd|calc")
+    body = client.get("/api/export.csv?kind=help").get_data(as_text=True).lstrip("﻿")
+    rows = list(csv_module.reader(body.splitlines()))
+    assert rows[1][2].startswith("'=") and rows[1][-1].startswith("'+")
+
+
+def test_csv_export_rejects_unknown_kind(client):
+    assert client.get("/api/export.csv?kind=users").status_code == 400
+    assert client.get("/api/export.csv").status_code == 400
+
+
+def test_board_page_has_report_and_export_controls(db, bot):
+    page = create_app(db, bot).test_client().get("/board").get_data(as_text=True)
+    assert "/api/report" in page and "/api/export.csv" in page and "รายงานสัปดาห์" in page

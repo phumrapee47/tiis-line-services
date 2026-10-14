@@ -6,10 +6,11 @@ Event shapes (normalised by the channel adapter):
 """
 import json
 import re
+from datetime import datetime, timezone
 from urllib.parse import parse_qs
 
 from . import messages as M
-from .config import today as default_today, week_no
+from .config import in_checkin_period, today as default_today, week_no
 
 ONBOARD = {"consent", "nickname", "goal"}
 CI_STATES = {"ci_progress", "ci_conf", "ci_blocker", "ci_blocker_text", "ci_contact", "ci_edit"}
@@ -90,7 +91,8 @@ class Bot:
                 return [M.stale()] + self._prompt(user_id, state, data)
             return handler(user, data, p.get("v"))
         if etype == "text" and state in TEXT_STATES:
-            return getattr(self, f"_text_{state}")(user, data, (event.get("text") or "").strip())
+            typed = (event.get("text") or "").replace("\x00", "").strip()  # NUL bytes break Postgres text
+            return getattr(self, f"_text_{state}")(user, data, typed)
         if state == "idle":
             return [M.unknown_idle()]
         return [M.unknown()] + self._prompt(user_id, state, data)
@@ -157,12 +159,13 @@ class Bot:
     def _status(self, uid):
         week = week_no(self.today())
         return M.status(week, self.db.get_checkin(uid, week), self.db.user_help(uid, 3),
-                        self.db.get_task(week))
+                        self.db.get_task(week), in_checkin_period(self.today()))
 
     # ---- onboarding -----------------------------------------------------------------
     def _on_consent(self, user, data, val):
         uid = user["user_id"]
         if val == "yes":
+            self.db.update_user(uid, consented_at=datetime.now(timezone.utc).isoformat(timespec="seconds"))
             self.db.set_state(uid, "nickname")
             return [M.ask_nickname()]
         if val == "no":
@@ -186,6 +189,8 @@ class Bot:
 
     # ---- check-in -------------------------------------------------------------------
     def _start_checkin(self, uid, edit):
+        if not in_checkin_period(self.today()):
+            return [M.followup_phase()]  # weeks 5-6: nothing to report, state untouched
         week = week_no(self.today())
         existing = self.db.get_checkin(uid, week)
         if existing and not edit:
@@ -286,8 +291,7 @@ class Bot:
         if open_:
             h = open_[0]
             if detail:
-                merged = f"{h['detail']} | {detail}" if h["detail"] else detail
-                self.db.update_help(h["id"], detail=merged[:2000])
+                self.db.add_help_note(h["id"], detail)
             return M.help_appended(h["id"], h["status"])
         return M.help_created(self.db.create_help(uid, category, detail))
 
