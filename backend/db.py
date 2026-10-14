@@ -1,0 +1,186 @@
+"""SQLite storage. One shared connection guarded by a lock (small pilot, 60 users)."""
+import json
+import sqlite3
+import threading
+from datetime import datetime
+
+SCHEMA = """
+CREATE TABLE IF NOT EXISTS users (
+    user_id TEXT PRIMARY KEY, nickname TEXT, goal TEXT,
+    state TEXT NOT NULL, state_data TEXT NOT NULL DEFAULT '{}',
+    joined_on TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS checkins (
+    user_id TEXT NOT NULL, week INTEGER NOT NULL,
+    progress TEXT NOT NULL, confidence INTEGER NOT NULL CHECK (confidence BETWEEN 1 AND 5),
+    blocker TEXT, wants_contact INTEGER NOT NULL DEFAULT 0,
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, week)
+);
+CREATE TABLE IF NOT EXISTS help_requests (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL,
+    category TEXT NOT NULL, detail TEXT,
+    status TEXT NOT NULL DEFAULT 'waiting',
+    created_at TEXT NOT NULL, updated_at TEXT NOT NULL
+);
+CREATE TABLE IF NOT EXISTS events (event_id TEXT PRIMARY KEY, received_at TEXT NOT NULL);
+CREATE TABLE IF NOT EXISTS outbox (
+    id INTEGER PRIMARY KEY AUTOINCREMENT, user_id TEXT NOT NULL,
+    messages TEXT NOT NULL, created_at TEXT NOT NULL, delivered INTEGER NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS pushes_sent (
+    user_id TEXT NOT NULL, kind TEXT NOT NULL, key TEXT NOT NULL,
+    PRIMARY KEY (user_id, kind, key)
+);
+CREATE TABLE IF NOT EXISTS followups (
+    user_id TEXT NOT NULL, kind TEXT NOT NULL, outcome TEXT NOT NULL, created_at TEXT NOT NULL,
+    PRIMARY KEY (user_id, kind)
+);
+"""
+
+
+def _now() -> str:
+    return datetime.now().isoformat(timespec="seconds")
+
+
+class Database:
+    def __init__(self, path: str = ":memory:"):
+        self.lock = threading.RLock()
+        self.conn = sqlite3.connect(path, check_same_thread=False)
+        self.conn.row_factory = sqlite3.Row
+        self.conn.executescript(SCHEMA)
+
+    def _q(self, sql, args=()):
+        with self.lock:
+            return self.conn.execute(sql, args).fetchall()
+
+    def _x(self, sql, args=()):
+        with self.lock:
+            cur = self.conn.execute(sql, args)
+            self.conn.commit()
+            return cur
+
+    # users
+    def get_user(self, user_id):
+        rows = self._q("SELECT * FROM users WHERE user_id=?", (user_id,))
+        return dict(rows[0]) if rows else None
+
+    def create_user(self, user_id, joined_on, state="consent"):
+        self._x("INSERT INTO users (user_id, state, joined_on) VALUES (?,?,?)",
+                (user_id, state, joined_on))
+
+    def set_state(self, user_id, state, data=None):
+        self._x("UPDATE users SET state=?, state_data=? WHERE user_id=?",
+                (state, json.dumps(data or {}, ensure_ascii=False), user_id))
+
+    def update_user(self, user_id, **fields):
+        cols = ", ".join(f"{k}=?" for k in fields)
+        self._x(f"UPDATE users SET {cols} WHERE user_id=?", (*fields.values(), user_id))
+
+    def delete_user_data(self, user_id):
+        with self.lock:
+            for t in ("users", "checkins", "help_requests", "outbox", "pushes_sent", "followups"):
+                self.conn.execute(f"DELETE FROM {t} WHERE user_id=?", (user_id,))
+            self.conn.commit()
+
+    def all_users(self):
+        return [dict(r) for r in self._q("SELECT * FROM users ORDER BY joined_on, user_id")]
+
+    # idempotency: True the first time an event id is seen
+    def mark_event(self, event_id) -> bool:
+        try:
+            self._x("INSERT INTO events (event_id, received_at) VALUES (?,?)", (event_id, _now()))
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def unmark_event(self, event_id):
+        self._x("DELETE FROM events WHERE event_id=?", (event_id,))
+
+    # check-ins
+    def get_checkin(self, user_id, week):
+        rows = self._q("SELECT * FROM checkins WHERE user_id=? AND week=?", (user_id, week))
+        return dict(rows[0]) if rows else None
+
+    def upsert_checkin(self, user_id, week, progress, confidence, blocker, wants_contact):
+        now = _now()
+        self._x(
+            """INSERT INTO checkins (user_id, week, progress, confidence, blocker, wants_contact,
+                                     created_at, updated_at)
+               VALUES (?,?,?,?,?,?,?,?)
+               ON CONFLICT(user_id, week) DO UPDATE SET
+                 progress=excluded.progress, confidence=excluded.confidence,
+                 blocker=excluded.blocker, wants_contact=excluded.wants_contact,
+                 updated_at=excluded.updated_at""",
+            (user_id, week, progress, confidence, blocker, int(wants_contact), now, now))
+
+    def checkin_weeks(self, user_id):
+        return {r["week"] for r in self._q("SELECT week FROM checkins WHERE user_id=?", (user_id,))}
+
+    def latest_checkin(self, user_id):
+        rows = self._q("SELECT * FROM checkins WHERE user_id=? ORDER BY week DESC LIMIT 1", (user_id,))
+        return dict(rows[0]) if rows else None
+
+    # help requests
+    def create_help(self, user_id, category, detail):
+        now = _now()
+        return self._x(
+            "INSERT INTO help_requests (user_id, category, detail, created_at, updated_at) "
+            "VALUES (?,?,?,?,?)", (user_id, category, detail, now, now)).lastrowid
+
+    def get_help(self, help_id):
+        rows = self._q("SELECT * FROM help_requests WHERE id=?", (help_id,))
+        return dict(rows[0]) if rows else None
+
+    def open_help(self, user_id, category=None):
+        sql = "SELECT * FROM help_requests WHERE user_id=? AND status IN ('waiting','accepted')"
+        args = [user_id]
+        if category:
+            sql += " AND category=?"
+            args.append(category)
+        return [dict(r) for r in self._q(sql + " ORDER BY id", args)]
+
+    def user_help(self, user_id, limit=3):
+        return [dict(r) for r in self._q(
+            "SELECT * FROM help_requests WHERE user_id=? ORDER BY id DESC LIMIT ?", (user_id, limit))]
+
+    def list_help(self, status=None):
+        if status:
+            rows = self._q("SELECT * FROM help_requests WHERE status=? ORDER BY id", (status,))
+        else:
+            rows = self._q("SELECT * FROM help_requests ORDER BY id")
+        return [dict(r) for r in rows]
+
+    def update_help(self, help_id, **fields):
+        fields["updated_at"] = _now()
+        cols = ", ".join(f"{k}=?" for k in fields)
+        self._x(f"UPDATE help_requests SET {cols} WHERE id=?", (*fields.values(), help_id))
+
+    # outbox (messages the system sends on its own: status updates, reminders)
+    def add_outbox(self, user_id, messages):
+        self._x("INSERT INTO outbox (user_id, messages, created_at) VALUES (?,?,?)",
+                (user_id, json.dumps(messages, ensure_ascii=False), _now()))
+
+    def pending_outbox(self, user_id=None):
+        sql, args = "SELECT * FROM outbox WHERE delivered=0", ()
+        if user_id:
+            sql, args = sql + " AND user_id=?", (user_id,)
+        return [{**dict(r), "messages": json.loads(r["messages"])} for r in self._q(sql + " ORDER BY id", args)]
+
+    def mark_delivered(self, outbox_id):
+        self._x("UPDATE outbox SET delivered=1 WHERE id=?", (outbox_id,))
+
+    # scheduled pushes and follow-ups
+    def mark_push(self, user_id, kind, key) -> bool:
+        try:
+            self._x("INSERT INTO pushes_sent (user_id, kind, key) VALUES (?,?,?)", (user_id, kind, str(key)))
+            return True
+        except sqlite3.IntegrityError:
+            return False
+
+    def save_followup(self, user_id, kind, outcome):
+        self._x("INSERT OR REPLACE INTO followups (user_id, kind, outcome, created_at) VALUES (?,?,?,?)",
+                (user_id, kind, outcome, _now()))
+
+    def list_followups(self):
+        return [dict(r) for r in self._q("SELECT * FROM followups ORDER BY user_id, kind")]
